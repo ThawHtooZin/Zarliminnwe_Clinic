@@ -27,6 +27,12 @@
         ];
 
         $unitRows = old('units', $existingRows ?: $defaultRows);
+        $selectedReorderUnitIndex = old('reorder_unit_index');
+        $reorderProductUnitId = $product->reorder_product_unit_id;
+
+        if ($selectedReorderUnitIndex === null && $reorderProductUnitId) {
+            $selectedReorderUnitIndex = $units->values()->search(fn ($unit) => $unit->id === $reorderProductUnitId);
+        }
     @endphp
 
     <div class="mb-6">
@@ -78,7 +84,22 @@
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-medium">Reorder Quantity</label>
-                    <input name="reorder_quantity" type="number" step="0.0001" min="0" value="{{ old('reorder_quantity', $product->reorder_quantity) }}" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm">
+                    <input name="reorder_quantity" type="number" step="0.0001" min="0.0001" value="{{ old('reorder_quantity', $product->reorder_quantity) }}" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm">
+                    @error('reorder_quantity')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium">Reorder Unit</label>
+                    <select name="reorder_unit_index" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm">
+                        <option value="">No reorder alert</option>
+                        @for ($index = 0; $index < 6; $index++)
+                            @php($row = $unitRows[$index] ?? [])
+                            <option value="{{ $index }}" @selected((string) $selectedReorderUnitIndex === (string) $index)>
+                                Row {{ $index + 1 }}{{ filled($row['name'] ?? null) ? ' - '.$row['name'] : '' }}
+                            </option>
+                        @endfor
+                    </select>
+                    <p class="mt-2 text-xs text-[#3e494a]">Choose the unit row used for low-stock comparison.</p>
+                    @error('reorder_unit_index')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
             </div>
 
