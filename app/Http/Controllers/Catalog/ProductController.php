@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -63,7 +64,10 @@ class ProductController extends Controller
         try {
             DB::transaction(function () use ($validated, &$product): void {
                 $product = Product::create($validated['product']);
-                $this->syncUnits($product, $validated['units']);
+                $unitByInputIndex = $this->syncUnits($product, $validated['units']);
+                $product->update([
+                    'reorder_product_unit_id' => $this->resolveReorderProductUnitId($validated['reorder_unit_index'], $unitByInputIndex),
+                ]);
                 $this->auditLogger->log('product.created', $product, null, $product->load('units')->toArray());
             });
         } catch (Throwable $throwable) {
@@ -107,7 +111,10 @@ class ProductController extends Controller
             DB::transaction(function () use ($product, $validated): void {
                 $oldValues = $product->load('units')->toArray();
                 $product->update($validated['product']);
-                $this->syncUnits($product, $validated['units']);
+                $unitByInputIndex = $this->syncUnits($product, $validated['units']);
+                $product->update([
+                    'reorder_product_unit_id' => $this->resolveReorderProductUnitId($validated['reorder_unit_index'], $unitByInputIndex),
+                ]);
                 $this->auditLogger->log('product.updated', $product, $oldValues, $product->fresh()->load('units')->toArray());
             });
         } catch (Throwable $throwable) {
@@ -139,7 +146,8 @@ class ProductController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'track_batch' => ['nullable', 'boolean'],
             'track_expiry' => ['nullable', 'boolean'],
-            'reorder_quantity' => ['nullable', 'numeric', 'min:0'],
+            'reorder_unit_index' => ['nullable', 'integer', 'min:0', 'required_with:reorder_quantity'],
+            'reorder_quantity' => ['nullable', 'numeric', 'gt:0', 'required_with:reorder_unit_index'],
             'is_active' => ['nullable', 'boolean'],
             'units' => ['required', 'array', 'min:1'],
             'units.*.id' => ['nullable', 'integer'],
@@ -155,12 +163,25 @@ class ProductController extends Controller
         ]);
 
         $units = collect($validated['units'])
+            ->map(fn (array $unit, int $index): array => ['_form_index' => $index] + $unit)
             ->filter(fn (array $unit): bool => filled($unit['name'] ?? null))
             ->values()
             ->all();
 
         if ($units === []) {
-            abort(422, 'At least one product unit is required.');
+            throw ValidationException::withMessages([
+                'units' => 'At least one product unit is required.',
+            ]);
+        }
+
+        $reorderUnitIndex = filled($validated['reorder_unit_index'] ?? null)
+            ? (int) $validated['reorder_unit_index']
+            : null;
+
+        if ($reorderUnitIndex !== null && ! collect($units)->contains('_form_index', $reorderUnitIndex)) {
+            throw ValidationException::withMessages([
+                'reorder_unit_index' => 'The selected reorder unit must belong to this product.',
+            ]);
         }
 
         return [
@@ -177,6 +198,7 @@ class ProductController extends Controller
                 'is_active' => (bool) ($validated['is_active'] ?? false),
             ],
             'units' => $units,
+            'reorder_unit_index' => $reorderUnitIndex,
         ];
     }
 
@@ -191,21 +213,23 @@ class ProductController extends Controller
 
     /**
      * @param  array<int, array<string, mixed>>  $units
+     * @return array<int, ProductUnit>
      */
-    private function syncUnits(Product $product, array $units): void
+    private function syncUnits(Product $product, array $units): array
     {
         $existingIds = $product->units()->pluck('id')->all();
         $seenIds = [];
         $indexToUnit = [];
 
-        foreach ($units as $index => $unitData) {
+        foreach ($units as $unitData) {
+            $formIndex = (int) $unitData['_form_index'];
             $unit = ProductUnit::updateOrCreate([
                 'id' => $unitData['id'] ?? null,
                 'product_id' => $product->id,
             ], [
                 'name' => $unitData['name'],
                 'abbreviation' => $unitData['abbreviation'],
-                'level' => $unitData['level'] ?? $index + 1,
+                'level' => $unitData['level'] ?? $formIndex + 1,
                 'conversion_factor' => $unitData['conversion_factor'] ?? null,
                 'is_purchase_unit' => (bool) ($unitData['is_purchase_unit'] ?? false),
                 'is_sale_unit' => (bool) ($unitData['is_sale_unit'] ?? false),
@@ -214,12 +238,13 @@ class ProductController extends Controller
             ]);
 
             $seenIds[] = $unit->id;
-            $indexToUnit[$index] = $unit;
+            $indexToUnit[$formIndex] = $unit;
         }
 
-        foreach ($units as $index => $unitData) {
+        foreach ($units as $unitData) {
+            $formIndex = (int) $unitData['_form_index'];
             $parentIndex = $unitData['parent_index'] ?? null;
-            $indexToUnit[$index]->update([
+            $indexToUnit[$formIndex]->update([
                 'parent_product_unit_id' => $parentIndex !== null && isset($indexToUnit[$parentIndex])
                     ? $indexToUnit[$parentIndex]->id
                     : null,
@@ -228,5 +253,19 @@ class ProductController extends Controller
 
         ProductUnit::whereIn('id', array_diff($existingIds, $seenIds))->delete();
         $this->unitRelationshipService->validateProductUnits($product->units()->get());
+
+        return $indexToUnit;
+    }
+
+    /**
+     * @param  array<int, ProductUnit>  $unitByInputIndex
+     */
+    private function resolveReorderProductUnitId(?int $reorderUnitIndex, array $unitByInputIndex): ?int
+    {
+        if ($reorderUnitIndex === null) {
+            return null;
+        }
+
+        return $unitByInputIndex[$reorderUnitIndex]?->id ?? null;
     }
 }

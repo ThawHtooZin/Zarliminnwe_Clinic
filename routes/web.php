@@ -4,9 +4,15 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Catalog\ProductCategoryController;
 use App\Http\Controllers\Catalog\ProductController;
 use App\Http\Controllers\Catalog\SupplierController;
+use App\Http\Controllers\Inventory\ExpiryAlertController;
+use App\Http\Controllers\Inventory\LowStockAlertController;
 use App\Http\Controllers\Inventory\OpeningStockController;
 use App\Http\Controllers\Inventory\PurchaseReceiptController;
+use App\Http\Controllers\Inventory\StockAdjustmentController;
 use App\Http\Controllers\Inventory\StockController;
+use App\Http\Controllers\Inventory\StockCountController;
+use App\Http\Controllers\Inventory\StockCountWorkflowController;
+use App\Http\Controllers\Reports\StockReportController;
 use App\Http\Controllers\Sales\PosController;
 use App\Http\Controllers\Sales\ProductSearchController;
 use App\Http\Controllers\Sales\SaleController;
@@ -56,5 +62,20 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/stock', [StockController::class, 'index'])->name('stock.index');
         Route::get('/stock/ledger', [StockController::class, 'ledger'])->name('stock.ledger');
+        Route::get('/stock-control/low-stock', [LowStockAlertController::class, 'index'])->name('stock-control.low-stock');
+        Route::get('/stock-control/expiry', [ExpiryAlertController::class, 'index'])->name('stock-control.expiry');
+        Route::get('/stock-adjustments/create', [StockAdjustmentController::class, 'create'])->name('stock-adjustments.create');
+        Route::post('/stock-adjustments', [StockAdjustmentController::class, 'store'])->name('stock-adjustments.store');
+
+        Route::resource('stock-counts', StockCountController::class)->only(['index', 'create', 'store', 'show', 'update']);
+        Route::post('/stock-counts/{stockCount}/submit', [StockCountWorkflowController::class, 'submit'])->name('stock-counts.submit');
+        Route::post('/stock-counts/{stockCount}/post', [StockCountWorkflowController::class, 'post'])->name('stock-counts.post');
+        Route::post('/stock-counts/{stockCount}/cancel', [StockCountWorkflowController::class, 'cancel'])->name('stock-counts.cancel');
+
+        Route::get('/reports/stock-on-hand', [StockReportController::class, 'stockOnHand'])->name('reports.stock-on-hand');
+        Route::get('/reports/stock-movements', [StockReportController::class, 'stockMovements'])->name('reports.stock-movements');
+        Route::get('/reports/low-stock', [StockReportController::class, 'lowStock'])->name('reports.low-stock');
+        Route::get('/reports/expiry', [StockReportController::class, 'expiry'])->name('reports.expiry');
+        Route::get('/reports/stock-adjustments', [StockReportController::class, 'adjustments'])->name('reports.stock-adjustments');
     });
 });

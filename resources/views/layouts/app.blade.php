@@ -21,6 +21,10 @@
             ['label' => 'Opening Stock', 'route' => 'opening-stock.create', 'match' => 'opening-stock.*', 'icon' => 'O'],
             ['label' => 'Purchase Receipts', 'route' => 'purchase-receipts.index', 'match' => 'purchase-receipts.*', 'icon' => 'R'],
             ['label' => 'Stock Ledger', 'route' => 'stock.ledger', 'match' => 'stock.*', 'icon' => 'L'],
+            ['label' => 'Low-Stock Alerts', 'route' => 'stock-control.low-stock', 'match' => 'stock-control.low-stock', 'icon' => 'A'],
+            ['label' => 'Expiry Alerts', 'route' => 'stock-control.expiry', 'match' => 'stock-control.expiry', 'icon' => 'E'],
+            ['label' => 'Stock Counts', 'route' => 'stock-counts.index', 'match' => 'stock-counts.*', 'icon' => 'C'],
+            ['label' => 'Stock Reports', 'route' => 'reports.stock-on-hand', 'match' => 'reports.*', 'icon' => 'R'],
         ];
     @endphp
 
