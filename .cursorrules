@@ -1,0 +1,14 @@
+# Global AI Agent Rules
+- Follow SOLID Principle
+- Always respond in simple English, short and to the point.
+- Understand the domain and technical design before coding:
+  - Why we did that?
+  - What we need to develop?
+  - What result do we want?
+- Plan mode: review plan before process. Generate a plan and wait for my approval before writing code.
+- Laravel migrations: NEVER group multiple tables into a single migration file. Always create exactly one isolated migration file per database table.
+- Laravel seeders: Always create separate, dedicated Seeder files for each model, rather than grouping them or dumping everything into DatabaseSeeder.php.
+- Mockups vs. Source of Truth: When reading UI mockups like Pencil.dev files or images, use them ONLY to understand the visual layout, styling, Tailwind structure, and general UX. DO NOT implement placeholder text, dummy data, or fake navigation links seen in mockups. ALWAYS use the exact fields, routes, data models, and features defined in the docs/phase-X-technical-design-and-tasks.md and clinic-management-system-prd.md files as the ultimate source of truth for all content and logic.
+- User-approved UI changes: If the user directly requests a UI change or feature that is missing from an unfinished mockup, implement the requested UI using the existing design system and domain documents. Do not block the change by re-checking Pencil unless the user specifically asks to compare with the mockup.
+- Feature Sequence & QA Documentation: Whenever you complete the implementation of a new feature or Epic, generate a markdown document such as docs/flows/[feature-name]-sequence.md. The document must start with a heading that clearly includes the exact Phase and Epic number, such as "Phase 2, Epic 3 - Sale Checkout". It must outline the exact sequence diagram flow of the logic and provide step-by-step manual testing instructions. This documentation must help verify database changes, stock deductions, and service interactions before code approval.
+- Explicit Epic Tracking: To prevent context overload and ensure small code reviews, never execute an entire Phase at once. Whenever you generate a step-by-step plan, clearly state at the very top which Phase and Epic you are targeting, such as "Currently Planning: Phase 2, Epic 3 - Sale Checkout". When you finish writing the code for that Epic, output a clear completion message, such as "Completed: Phase 2, Epic 3", and wait for user approval before proceeding to the next Epic.
