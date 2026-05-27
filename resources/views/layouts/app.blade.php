@@ -13,6 +13,14 @@
     @php
         $navigation = [
             ['label' => 'Dashboard', 'route' => 'dashboard', 'match' => 'dashboard', 'icon' => 'D'],
+            ['label' => 'Patient Visits', 'route' => 'patient-visits.index', 'match' => 'patient-visits.*', 'icon' => 'V'],
+            ['label' => 'Income', 'route' => 'finance.income.index', 'match' => 'finance.income.*', 'icon' => 'N'],
+            ['label' => 'Expenses', 'route' => 'finance.expenses.index', 'match' => 'finance.expenses.*', 'icon' => 'E'],
+            ['label' => 'Finance Summary', 'route' => 'reports.finance-summary', 'match' => 'reports.finance-summary', 'icon' => 'F'],
+            ['label' => 'Income Report', 'route' => 'reports.finance-income', 'match' => 'reports.finance-income', 'icon' => 'R'],
+            ['label' => 'Expense Report', 'route' => 'reports.finance-expenses', 'match' => 'reports.finance-expenses', 'icon' => 'P'],
+            ['label' => 'Income Categories', 'route' => 'finance.income-categories.index', 'match' => 'finance.income-categories.*', 'icon' => 'I'],
+            ['label' => 'Expense Categories', 'route' => 'finance.expense-categories.index', 'match' => 'finance.expense-categories.*', 'icon' => 'X'],
             ['label' => 'POS', 'route' => 'sales.pos', 'match' => 'sales.pos', 'icon' => 'S'],
             ['label' => 'Sales History', 'route' => 'sales.index', 'match' => 'sales.index', 'icon' => 'H'],
             ['label' => 'Products', 'route' => 'products.index', 'match' => 'products.*', 'icon' => 'P'],
