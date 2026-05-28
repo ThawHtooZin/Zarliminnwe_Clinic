@@ -20,7 +20,7 @@
 - Maintain accurate real-time stock using a native multi-unit stock ledger.
 - Provide an ultra-minimal patient module for service fee reference only.
 - Track income and expenses, including service income linked to patient visit records.
-- Exclude complex EHR and appointment booking to keep the product focused and maintainable.
+- Exclude complex EHR and scheduling modules to keep the product focused and maintainable.
 
 ### 2. Scope of the Project
 
@@ -31,7 +31,7 @@
 - Define product-specific unit hierarchies, such as box, strip, and pill.
 - Enforce a strict one-to-many relationship between an item/product and its units: one item contains multiple unit levels, and each unit belongs to one item only.
 - Configure conversion factors between units.
-- Handle complex fractional calculations between related units natively, such as deducting part of a bottle when pills are sold.
+- Enforce integer stock balances per unit; when selling a smaller unit and only parent stock exists, auto-unpack whole parent units (e.g. 1 box → 10 strips) then deduct from the child unit—never fractional parent deductions (e.g. 0.5 boxes).
 - Allow different default units for purchasing and selling.
 - Support barcode assignment per unit level.
 - Validate unit definitions before saving.
@@ -83,10 +83,10 @@
 
 ##### Patient Management
 
-- Maintain ultra-minimal patient visit records with only name, age, and visit datetime.
-- Do not store clinical records, history, prescriptions, vitals, notes, or appointments.
+- Maintain master patients (name, age, address) and ultra-minimal visit records (visit datetime only, linked to a master patient).
+- Do not store clinical records, history, prescriptions, vitals, notes, or scheduling entities.
 - Allow service income records to link directly to a patient visit record when a fee is collected.
-- Keep patient management independent from stock, unit, pharmacy sales, and appointment workflows.
+- Keep patient creation and visit creation in a strict linear flow: Patient -> Visit -> POS.
 
 ##### Income & Expense Tracking
 
@@ -95,6 +95,7 @@
 - Record general income categories when needed.
 - Record expenses by category, amount, date, payee, and description.
 - Provide income, expense, and net summary reports by date range.
+- **Unified income transparency (UI):** Detailed income views must show both service/general income (`income_entries`) and completed pharmacy POS sales (`sales`) in one list. Pharmacy sales display with a pseudo-category label **Pharmacy Sale**, linked patient visit, and exact `grand_total`. Database tables stay separate (no copying sales into `income_entries`).
 
 ##### Administration
 
@@ -107,7 +108,7 @@
 
 - Complex Electronic Health Records (EHR).
 - Diagnosis, treatment plans, prescriptions as clinical records, lab results, and vitals.
-- Appointment booking, doctor scheduling, queue management, and patient appointment records.
+- Advanced booking workflows, doctor scheduling, queue management, and temporary intake records.
 - Insurance claims and third-party billing.
 - Patient portal or telemedicine.
 - Multi-branch inventory in MVP.
@@ -146,7 +147,8 @@
 - The system shall support units such as box, strip, pill, bottle, vial, and tablet.
 - The system shall store conversion factors between unit levels.
 - The system shall not require one normalized backend storage unit for all stock.
-- The system shall handle complex fractional calculations between unit relationships natively, such as deducting a fraction of a bottle when pills are sold.
+- The system shall keep stock balances as whole numbers per product unit; it shall not deduct fractional quantities from a parent unit (e.g. 0.5 boxes).
+- When a sale unit has insufficient direct stock but a parent unit has stock, the system shall auto-unpack whole parent units into child units (per conversion factor) in the stock ledger, then deduct the sale quantity from the child unit.
 - The system shall preserve the product unit used by each stock transaction.
 - The system shall allow purchase and sale in different real-world units configured for the item/product.
 - The system shall convert quantities between units during purchase, sale, adjustment, and reporting.
@@ -170,7 +172,7 @@
 - The system shall record `product_unit_id` and quantity on every stock ledger row.
 - The system shall record `product_unit_id` and quantity on stock balances so inventory can be tracked natively in the unit received, sold, or adjusted.
 - The system shall use the unit relationship service for all stock display screens so users can view stock in recognizable units across bottles, boxes, strips, pills, or other configured units.
-- The system shall support fractional cross-unit deduction when stock is sold in a smaller related unit than it was received in.
+- The system shall support integer auto-unpack from a parent unit when stock is sold in a smaller related unit than is on hand (whole parent OUT, whole child IN, then sale OUT)—not fractional parent deductions.
 - The system shall increase stock after purchase receipt or positive adjustment.
 - The system shall decrease stock after sale, wastage, return, or negative adjustment.
 - The system shall require a reason for manual stock adjustment.
@@ -186,7 +188,8 @@
 - The system shall allow cashier users to create sales.
 - The system shall allow products to be added to a sale by search or barcode.
 - The system shall allow each sale line to specify product, unit, quantity, price, discount, and subtotal.
-- The system shall deduct stock using the sale line unit and quantity, applying fractional unit relationship calculations when needed.
+- The system shall deduct stock using the sale line unit and whole-number quantity, automatically integer auto-unpacking from parent units when direct stock is insufficient (no cashier toggle).
+- Adding the same product and unit to the POS cart again shall increase the existing line quantity instead of creating a duplicate cart row.
 - The system shall calculate subtotal, discount, tax if enabled, total, amount paid, and change.
 - The system shall support cash, card, and mixed payments.
 - The system shall generate a unique sale number.
@@ -209,9 +212,9 @@
 
 ##### Patient Management
 
-- FR-PT1: The system shall allow creation of an ultra-minimal patient visit record with only name, age, and visit datetime.
-- FR-PT2: The system shall allow viewing and editing of the ultra-minimal patient visit record fields only.
-- FR-PT3: The system shall not store diagnosis, prescriptions, vitals, medical notes, clinical history, treatment history, or appointment data.
+- FR-PT1: The system shall require a master patient before creating a visit record; new visits are created only from the patient detail page with visit datetime (demographics live on the master patient).
+- FR-PT2: The system shall allow viewing visit records from the patient profile and editing visit datetime only (patient name, age, and address are edited on the master patient).
+- FR-PT3: The system shall not store diagnosis, prescriptions, vitals, medical notes, clinical history, treatment history, or scheduling data.
 - FR-PT4: The system shall allow service income records to link directly to a patient visit record when a fee is collected.
 - FR-PT5: The system shall ensure patient records are decoupled from pharmacy stock, product units, and pharmacy sales workflows.
 
@@ -220,10 +223,13 @@
 - FR-IE1: The system shall allow users to record service income with income category, amount, payment method, collected datetime, and collected user.
 - FR-IE2: The system shall allow service income to link directly to one ultra-minimal patient visit record when a patient fee is collected.
 - FR-IE3: The system shall allow service income to be recorded without a patient link for non-patient service income.
-- FR-IE4: The system shall keep pharmacy sales income separate from service income while allowing both to appear in financial summaries.
+- FR-IE4: The system shall store pharmacy sales only in `sales` (not duplicated into `income_entries`) to preserve void and stock-reversal integrity.
 - FR-IE5: The system shall allow users to record expenses with expense category, amount, expense date, payee, and description.
-- FR-IE6: The system shall provide income, expense, and net balance summaries by date range.
+- FR-IE6: The system shall provide income, expense, and net balance summaries by date range (summary may include pharmacy sales as an aggregate total).
 - FR-IE7: The system shall allow filtering income and expense records by category, date range, payment method, and user where applicable.
+- FR-IE8: The Patient Visit detail screen shall list linked service income **and** linked completed pharmacy sales for that visit.
+- FR-IE9: The Finance Income list (`/finance/income`) and Income Report shall aggregate and display `income_entries` and completed `sales` in one chronological list; pharmacy rows use pseudo-category **Pharmacy Sale** and show linked patient visit and amount.
+- FR-IE10: Voided pharmacy sales shall not appear in unified income lists.
 
 ##### Reporting
 
@@ -260,7 +266,7 @@
 
 - Unit relationship calculations must be deterministic and test-covered.
 - Stock ledger and stock balance records must preserve `product_unit_id` and quantity instead of forcing all stock into one backend unit.
-- Unit relationship calculations must support fractional deductions across related units without losing precision.
+- Unit relationship calculations for POS stock must use integer balances and whole-unit auto-unpack; fractional parent deductions are not allowed.
 - Purchase receipts must preserve the exact real-world unit bought from the supplier.
 - Sale, purchase, void, and adjustment calculations must produce traceable stock movements.
 
@@ -336,14 +342,41 @@
 - Ultra-minimal patient visit records.
 - Service income linked to patient visit records.
 - Income and expense tracking.
-- No EHR or appointment features.
+- No EHR or scheduling features.
 
-#### Phase 5: Hardening
+#### Phase 5: Hardening *(On Hold)*
+
+> **Status:** Deferred. This phase is not in active development. Work may resume later.
 
 - Pest tests.
 - Security review.
 - Audit log review.
 - Performance checks for POS and reports.
+
+#### Phase 6: Bug Fixes, Enhancements, And Operational Improvements *(Active)*
+
+> **Status:** Active. Technical breakdown: `docs/phase-6-technical-design-and-tasks.md`.
+
+- User management (including password reset).
+- Role management.
+- Permission management (screen and route access only; not per-feature permissions).
+- POS add-to-cart stock validation.
+- Parent-unit breakdown at POS (sell child unit from parent-unit stock; model-backed).
+- Patient module (major feature; evolves Phase 4 visit-only data).
+- Patients: auto-generated unique ID, name, age, address.
+- Visit records per patient: visit datetime, stackable diagnosis, charges and fees.
+- Patient management: master patients are created and edited only from the **Patients** screen (sidebar has no separate Patient Visits link).
+- New visit records are created **only** from a master patient's detail page (`New Visit`); visit forms capture visit datetime only (patient demographics come from the master record).
+- Visit record detail (reachable from patient profile): linked service income, linked pharmacy sales, stackable diagnoses, and diagnosis editing.
+- POS optional patient link from today's recent patient visits (latest-first active queue); visits with a completed pharmacy sale are hidden from the dropdown to prevent double-billing.
+- Pharmacy sale attaches directly to `patient_visit_record_id` selected from recent visits.
+- Grouped scrollable sidebar (Main Features, Management, Configurations, Finance, Reports).
+- Finance & POS UI unification: Patient Visit detail and Finance Income screens show service income + pharmacy sales together (read-time merge; no DB duplication).
+- Strict Patient → Visit UI: no standalone visit list or standalone visit creation screen.
+
+## Coming In Later Phase 6 Epics
+
+- *(None — Phase 6 scope is defined in technical design.)*
 
 ### Success Metrics
 
@@ -352,5 +385,5 @@
 - Average checkout time is below 60 seconds for baskets with 5 or fewer items.
 - No critical production bugs in unit relationship calculations during the first 30 days after launch.
 - Patient module remains ultra-minimal and does not block pharmacy sales.
-- Service income can be traced to a patient visit when a patient fee is collected.
+- Service income and linked pharmacy sales can be traced on the patient visit detail and detailed income screens.
 

@@ -2,97 +2,137 @@
 
 namespace App\Http\Controllers\Patients;
 
-use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Finance\Services\UnifiedIncomeQueryService;
+use App\Domain\Patients\Services\PatientVisitRecordService;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Patients\PatientVisitRequest;
-use App\Models\PatientVisit;
+use App\Models\Patient;
+use App\Models\PatientDiagnosis;
+use App\Models\PatientVisitRecord;
+use App\Models\Sale;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class PatientVisitController extends Controller
 {
-    public function __construct(private readonly AuditLogger $auditLogger) {}
+    public function __construct(
+        private readonly PatientVisitRecordService $patientVisitRecordService,
+        private readonly UnifiedIncomeQueryService $unifiedIncomeQueryService,
+    ) {}
 
-    public function index(Request $request): View
-    {
-        $filters = $request->validate([
-            'patient_name' => ['nullable', 'string', 'max:255'],
-            'visited_from' => ['nullable', 'date'],
-            'visited_to' => ['nullable', 'date'],
-        ]);
-
-        $patientVisits = PatientVisit::query()
-            ->with('createdBy')
-            ->when($filters['patient_name'] ?? null, function ($query, string $patientName): void {
-                $query->where('patient_name', 'like', '%'.$patientName.'%');
-            })
-            ->when($filters['visited_from'] ?? null, function ($query, string $visitedFrom): void {
-                $query->whereDate('visited_at', '>=', $visitedFrom);
-            })
-            ->when($filters['visited_to'] ?? null, function ($query, string $visitedTo): void {
-                $query->whereDate('visited_at', '<=', $visitedTo);
-            })
-            ->latest('visited_at')
-            ->paginate(15)
-            ->withQueryString();
-
-        return view('patient-visits.index', compact('patientVisits', 'filters'));
-    }
-
-    public function create(): View
+    public function createForPatient(Patient $patient): View
     {
         return view('patient-visits.form', [
-            'patientVisit' => new PatientVisit(['visited_at' => now()]),
+            'patient' => $patient,
+            'patientVisit' => new PatientVisitRecord([
+                'patient_id' => $patient->id,
+                'visited_at' => now(),
+            ]),
         ]);
     }
 
-    public function store(PatientVisitRequest $request): RedirectResponse
+    public function storeForPatient(Request $request, Patient $patient): RedirectResponse
     {
-        $patientVisit = PatientVisit::create($this->patientVisitData($request) + [
-            'created_by' => $request->user()->id,
+        $data = $request->validate([
+            'visited_at' => ['required', 'date'],
         ]);
 
-        $this->auditLogger->log('patient_visit.created', $patientVisit, null, $patientVisit->toArray());
+        $visitRecord = $this->patientVisitRecordService->createForPatient($patient, $data, $request->user());
 
-        return redirect()->route('patient-visits.show', $patientVisit)->with('status', 'Patient visit created.');
+        return redirect()->route('patient-visits.show', $visitRecord)->with('status', 'Patient visit created.');
     }
 
-    public function show(PatientVisit $patientVisit): View
+    public function show(PatientVisitRecord $patientVisit): View
     {
         $patientVisit->load([
+            'patient',
             'createdBy',
+            'diagnoses.recordedBy',
             'incomeEntries.incomeCategory',
             'incomeEntries.receivedBy',
         ]);
 
-        return view('patient-visits.show', compact('patientVisit'));
+        return view('patient-visits.show', [
+            'patientVisit' => $patientVisit,
+            'visitIncomeLines' => $this->unifiedIncomeQueryService->forPatientVisit($patientVisit),
+            'visitIncomeTotal' => $this->unifiedIncomeQueryService->visitIncomeTotal($patientVisit),
+        ]);
     }
 
-    public function edit(PatientVisit $patientVisit): View
+    public function editForPatient(Patient $patient, PatientVisitRecord $patientVisit): View
     {
-        return view('patient-visits.form', compact('patientVisit'));
+        abort_unless($patientVisit->patient_id === $patient->id, 404);
+
+        return view('patient-visits.form', [
+            'patient' => $patient,
+            'patientVisit' => $patientVisit,
+        ]);
     }
 
-    public function update(PatientVisitRequest $request, PatientVisit $patientVisit): RedirectResponse
+    public function updateForPatient(Request $request, Patient $patient, PatientVisitRecord $patientVisit): RedirectResponse
     {
-        $oldValues = $patientVisit->toArray();
-        $patientVisit->update($this->patientVisitData($request));
+        abort_unless($patientVisit->patient_id === $patient->id, 404);
 
-        $this->auditLogger->log('patient_visit.updated', $patientVisit, $oldValues, $patientVisit->fresh()->toArray());
+        $data = $request->validate([
+            'visited_at' => ['required', 'date'],
+        ]);
+
+        $this->patientVisitRecordService->updateForPatient($patientVisit, $data);
 
         return redirect()->route('patient-visits.show', $patientVisit)->with('status', 'Patient visit updated.');
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function patientVisitData(PatientVisitRequest $request): array
+    public function storeDiagnosis(Request $request, PatientVisitRecord $patientVisit): RedirectResponse
     {
-        return $request->safe()->only([
-            'patient_name',
-            'age',
-            'visited_at',
+        $data = $request->validate([
+            'diagnosis_text' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $this->patientVisitRecordService->addDiagnosis($patientVisit, $data['diagnosis_text'], $request->user());
+
+        return redirect()->route('patient-visits.show', $patientVisit)->with('status', 'Diagnosis added.');
+    }
+
+    public function editDiagnosis(PatientVisitRecord $patientVisit, PatientDiagnosis $diagnosis): View
+    {
+        abort_unless($diagnosis->patient_visit_record_id === $patientVisit->id, 404);
+
+        return view('patient-visits.diagnosis-edit', compact('patientVisit', 'diagnosis'));
+    }
+
+    public function updateDiagnosis(Request $request, PatientVisitRecord $patientVisit, PatientDiagnosis $diagnosis): RedirectResponse
+    {
+        abort_unless($diagnosis->patient_visit_record_id === $patientVisit->id, 404);
+
+        $data = $request->validate([
+            'diagnosis_text' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $this->patientVisitRecordService->updateDiagnosis($diagnosis, $data['diagnosis_text']);
+
+        return redirect()->route('patient-visits.show', $patientVisit)->with('status', 'Diagnosis updated.');
+    }
+
+    public function todayRecent(): JsonResponse
+    {
+        $visits = PatientVisitRecord::query()
+            ->with('patient')
+            ->whereDate('visited_at', now()->toDateString())
+            ->whereDoesntHave('sales', function ($query): void {
+                $query->where('status', Sale::STATUS_COMPLETED);
+            })
+            ->latest('visited_at')
+            ->limit(20)
+            ->get();
+
+        return response()->json([
+            'data' => $visits->map(fn (PatientVisitRecord $visit): array => [
+                'id' => $visit->id,
+                'patient_code' => $visit->patient?->patient_code,
+                'patient_name' => $visit->patient_name,
+                'visited_at' => $visit->visited_at?->toIso8601String(),
+            ])->values(),
         ]);
     }
 }

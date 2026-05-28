@@ -28,9 +28,11 @@
                     'name' => $unit->name,
                     'abbreviation' => $unit->abbreviation,
                     'sale_price' => (float) $unit->sale_price,
+                    'is_available' => true,
+                    'max_qty' => 999999,
                 ])->values(),
                 'unitId' => $line->product_unit_id,
-                'quantity' => (float) $line->quantity,
+                'quantity' => (int) round((float) $line->quantity),
                 'unitPrice' => (float) $line->unit_price,
             ];
         })->values() ?? collect();
@@ -74,12 +76,13 @@
                     >
                 </label>
             </div>
+            <p x-show="errorMessage" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="errorMessage"></p>
 
-            <div class="grid grid-cols-3 gap-4 overflow-y-auto pr-1">
+            <div class="grid grid-cols-4 gap-3 overflow-y-auto pr-1">
                 <template x-for="product in products" :key="product.id">
                     <article class="rounded-lg border border-[#bec8ca] bg-white p-4 shadow-sm">
-                        <div class="mb-3 flex h-28 items-center justify-center overflow-hidden rounded-xl border border-[#bec8ca] bg-[#e8f3f4]">
-                            <img x-show="product.image_url" :src="product.image_url" :alt="`${product.name} image`" class="h-full w-full object-cover">
+                        <div class="mb-3 flex h-40 items-center justify-center overflow-hidden rounded-xl border border-[#bec8ca] bg-[#e8f3f4]">
+                            <img x-show="product.image_url" :src="product.image_url" :alt="`${product.name} image`" class="h-full w-full object-contain">
                             <span x-show="!product.image_url" class="text-3xl font-semibold text-[#00535b]" x-text="product.initial"></span>
                         </div>
 
@@ -94,10 +97,15 @@
                                 <button
                                     type="button"
                                     x-on:click="addToCart(product, unit)"
+                                    :disabled="!unit.is_available"
                                     class="flex w-full items-center justify-between rounded-lg border border-[#00535b0a] bg-[#00535b03] px-3 py-2 text-left transition hover:border-[#00535b] hover:bg-[#00535b08]"
+                                    :class="{ 'opacity-50 cursor-not-allowed hover:border-[#00535b0a] hover:bg-[#00535b03]': !unit.is_available }"
                                 >
                                     <span class="text-xs font-medium text-[#3e494a]" x-text="unit.name"></span>
-                                    <span class="text-sm font-semibold text-[#00535b]" x-text="money(unit.sale_price)"></span>
+                                    <span class="text-right">
+                                        <span class="block text-sm font-semibold text-[#00535b]" x-text="money(unit.sale_price)"></span>
+                                        <span class="block text-[10px] text-[#3e494a]" x-text="`Max: ${Number(unit.max_qty || 0)}`"></span>
+                                    </span>
                                 </button>
                             </template>
                         </div>
@@ -113,10 +121,13 @@
         <aside class="flex min-h-0 flex-col border-l border-[#bec8ca] bg-white">
             <section class="border-b border-[#bec8ca] bg-[#f3f4f5] p-6">
                 <label class="mb-2 block text-xs font-bold uppercase tracking-[0.06em] text-[#6f797a]">Patient Information (Optional)</label>
-                <select x-model="patientVisitId" name="patient_visit_id" class="w-full rounded border border-[#bec8ca] bg-white px-4 py-3 text-sm text-[#191c1d] shadow-sm">
+                <select x-model="patientVisitId" class="w-full rounded border border-[#bec8ca] bg-white px-4 py-3 text-sm text-[#191c1d] shadow-sm">
                     <option value="">No patient selected</option>
+                    <template x-for="visit in recentVisits" :key="visit.id">
+                        <option :value="String(visit.id)" x-text="visitOptionLabel(visit)"></option>
+                    </template>
                 </select>
-                <p class="mt-2 text-xs text-[#3e494a]">Patient selection is optional and contains no clinical records.</p>
+                <p class="mt-2 text-xs text-[#3e494a]">Select from today&apos;s recent patient visits only.</p>
             </section>
 
             <section class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -159,7 +170,17 @@
                                 </label>
                                 <label class="text-xs text-[#3e494a]">
                                     Quantity
-                                    <input x-model.number="line.quantity" type="number" min="0.000001" step="0.000001" class="mt-1 w-full rounded border border-[#bec8ca] bg-[#f8f9fa] px-2 py-2 text-sm text-[#191c1d]">
+                                    <input
+                                        x-model.number="line.quantity"
+                                        x-on:input="normalizeLineQuantity(line)"
+                                        x-on:change="enforceLineAvailability(line)"
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        inputmode="numeric"
+                                        pattern="[0-9]*"
+                                        class="mt-1 w-full rounded border border-[#bec8ca] bg-[#f8f9fa] px-2 py-2 text-sm text-[#191c1d]"
+                                    >
                                 </label>
                                 <label class="text-xs text-[#3e494a]">
                                     Unit Price
@@ -170,6 +191,7 @@
                                     <p class="mt-3 text-base font-semibold text-[#00535b]" x-text="money(lineTotal(line))"></p>
                                 </div>
                             </div>
+                            <p class="mt-2 text-[11px] text-[#6f797a]" x-show="selectedUnit(line)" x-text="lineAvailabilityText(line)"></p>
                         </div>
                     </template>
                 </div>
@@ -215,6 +237,7 @@
                 <form method="POST" action="{{ route('sales.store') }}" class="mt-5 space-y-3">
                     @csrf
                     <input type="hidden" name="held_sale_id" :value="heldSaleId">
+                    <input type="hidden" name="patient_visit_record_id" :value="patientVisitId">
                     <input type="hidden" name="patient_visit_id" :value="patientVisitId">
                     <input type="hidden" name="cart_payload" :value="JSON.stringify(cart)">
                     <input type="hidden" name="discount_total" :value="Number(discount || 0).toFixed(2)">
@@ -237,15 +260,34 @@
             return {
                 search: '',
                 products: [],
+                recentVisits: [],
                 cart: @json($heldSaleCart),
                 heldSaleId: @json($heldSale?->id),
-                patientVisitId: @json((string) ($heldSale?->patient_visit_id ?? '')),
+                patientVisitId: @json((string) ($heldSale?->patient_visit_record_id ?? '')),
                 discount: @json((float) ($heldSale?->discount_total ?? 0)),
                 tax: @json((float) ($heldSale?->tax_total ?? 0)),
                 amountPaid: 0,
                 paymentMethod: @json($heldSale?->payment_method ?? 'cash'),
+                errorMessage: '',
                 initializePos() {
-                    this.searchProducts();
+                    this.searchProducts().then(() => this.syncCartAvailability());
+                    this.loadRecentVisits();
+                    this.cart.forEach((line) => {
+                        this.normalizeLineQuantity(line);
+                        this.enforceLineAvailability(line);
+                    });
+                },
+                syncCartAvailability() {
+                    this.cart.forEach((line) => {
+                        const product = this.products.find((item) => Number(item.id) === Number(line.productId));
+                        if (product) {
+                            line.units = product.units;
+                        }
+                    });
+                },
+                normalizeLineQuantity(line) {
+                    const parsed = parseInt(line.quantity, 10);
+                    line.quantity = Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
                 },
                 async searchProducts() {
                     const params = new URLSearchParams({ search: this.search });
@@ -255,9 +297,39 @@
                     const payload = await response.json();
                     this.products = payload.data ?? [];
                 },
+                async loadRecentVisits() {
+                    const response = await fetch(`{{ route('sales.patient-visits.today-recent') }}`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const payload = await response.json();
+                    this.recentVisits = payload.data ?? [];
+                    if (this.patientVisitId && !this.recentVisits.some((item) => String(item.id) === String(this.patientVisitId))) {
+                        this.patientVisitId = '';
+                    }
+                },
+                visitOptionLabel(visit) {
+                    const code = visit.patient_code ? `${visit.patient_code} - ` : '';
+                    return `${code}${visit.patient_name} (Visit #${visit.id})`;
+                },
                 addToCart(product, unit) {
+                    if (!unit.is_available) {
+                        this.errorMessage = `No stock available for ${product.name} (${unit.name}).`;
+                        return;
+                    }
+                    const existing = this.cart.find((line) =>
+                        Number(line.productId) === Number(product.id) &&
+                        Number(line.unitId) === Number(unit.id)
+                    );
+                    if (existing) {
+                        existing.units = product.units;
+                        this.normalizeLineQuantity(existing);
+                        existing.quantity = existing.quantity + 1;
+                        this.enforceLineAvailability(existing);
+                        this.errorMessage = '';
+                        return;
+                    }
                     this.cart.push({
-                        key: `${product.id}-${unit.id}-${Date.now()}-${Math.random()}`,
+                        key: `${product.id}-${unit.id}`,
                         productId: product.id,
                         productName: product.name,
                         sku: product.sku,
@@ -268,15 +340,46 @@
                         quantity: 1,
                         unitPrice: Number(unit.sale_price),
                     });
+                    this.errorMessage = '';
                 },
                 removeLine(index) {
                     this.cart.splice(index, 1);
                 },
                 changeUnit(line) {
+                    const product = this.products.find((item) => Number(item.id) === Number(line.productId));
+                    if (product) {
+                        line.units = product.units;
+                    }
                     const selected = line.units.find((unit) => Number(unit.id) === Number(line.unitId));
                     if (selected) {
                         line.unitPrice = Number(selected.sale_price);
+                        this.normalizeLineQuantity(line);
+                        this.enforceLineAvailability(line);
                     }
+                },
+                selectedUnit(line) {
+                    return line.units.find((unit) => Number(unit.id) === Number(line.unitId));
+                },
+                enforceLineAvailability(line) {
+                    const selected = this.selectedUnit(line);
+                    if (!selected) {
+                        return;
+                    }
+                    this.normalizeLineQuantity(line);
+                    const maxQty = parseInt(selected.max_qty || 0, 10);
+                    if (maxQty > 0 && line.quantity > maxQty) {
+                        line.quantity = maxQty;
+                        this.errorMessage = `Requested quantity exceeds available stock for ${line.productName} (${selected.name}).`;
+                        return;
+                    }
+                    this.errorMessage = '';
+                },
+                lineAvailabilityText(line) {
+                    const unit = this.selectedUnit(line);
+                    if (!unit) {
+                        return '';
+                    }
+                    return `Available: ${parseInt(unit.max_qty || 0, 10)}`;
                 },
                 lineTotal(line) {
                     return Number(line.quantity || 0) * Number(line.unitPrice || 0);

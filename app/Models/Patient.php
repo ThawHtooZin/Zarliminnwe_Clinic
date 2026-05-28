@@ -7,14 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class PatientVisit extends Model
+class Patient extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'patient_name',
+        'patient_code',
+        'name',
         'age',
-        'visited_at',
+        'address',
         'created_by',
     ];
 
@@ -22,7 +23,6 @@ class PatientVisit extends Model
     {
         return [
             'age' => 'integer',
-            'visited_at' => 'datetime',
         ];
     }
 
@@ -31,8 +31,8 @@ class PatientVisit extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function incomeEntries(): HasMany
+    public function visitRecords(): HasMany
     {
-        return $this->hasMany(IncomeEntry::class);
+        return $this->hasMany(PatientVisitRecord::class);
     }
 }

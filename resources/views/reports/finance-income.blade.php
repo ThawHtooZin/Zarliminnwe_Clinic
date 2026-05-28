@@ -6,7 +6,7 @@
 @section('content')
     <div class="mb-6">
         <h1 class="text-3xl font-semibold text-[#191c1d]">Income Report</h1>
-        <p class="mt-1 text-sm text-[#3e494a]">Service and general income entries only. Pharmacy sales are on the finance summary report.</p>
+        <p class="mt-1 text-sm text-[#3e494a]">Service income and completed pharmacy POS sales aggregated for the selected period.</p>
     </div>
 
     <form method="GET" action="{{ route('reports.finance-income') }}" class="mb-5 rounded-lg border border-[#bec8ca] bg-white p-4">
@@ -23,6 +23,7 @@
                 <label class="mb-2 block text-sm font-medium">Category</label>
                 <select name="income_category_id" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm outline-none focus:border-[#00535b]">
                     <option value="">All</option>
+                    <option value="{{ \App\Domain\Finance\Services\UnifiedIncomeQueryService::PHARMACY_SALE_FILTER }}" @selected(($filters['income_category_id'] ?? '') === \App\Domain\Finance\Services\UnifiedIncomeQueryService::PHARMACY_SALE_FILTER)>Pharmacy Sale</option>
                     @foreach ($categories as $category)
                         <option value="{{ $category->id }}" @selected(($filters['income_category_id'] ?? '') == $category->id)>{{ $category->name }}</option>
                     @endforeach
@@ -35,6 +36,7 @@
                     @foreach (\App\Models\IncomeEntry::paymentMethods() as $method)
                         <option value="{{ $method }}" @selected(($filters['payment_method'] ?? '') === $method)>{{ ucfirst(str_replace('_', ' ', $method)) }}</option>
                     @endforeach
+                    <option value="{{ \App\Models\Sale::PAYMENT_MIXED }}" @selected(($filters['payment_method'] ?? '') === \App\Models\Sale::PAYMENT_MIXED)>Mixed</option>
                 </select>
             </div>
             <div>
@@ -42,7 +44,7 @@
                 <select name="patient_visit_id" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm outline-none focus:border-[#00535b]">
                     <option value="">All</option>
                     @foreach ($patientVisits as $visit)
-                        <option value="{{ $visit->id }}" @selected(($filters['patient_visit_id'] ?? '') == $visit->id)>{{ $visit->patient_name }}</option>
+                        <option value="{{ $visit->id }}" @selected(($filters['patient_visit_id'] ?? '') == $visit->id)>{{ $visit->patient->patient_code }} — {{ $visit->patient_name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -62,43 +64,5 @@
         </div>
     </form>
 
-    <div class="overflow-hidden rounded-lg border border-[#bec8ca] bg-white">
-        <table class="w-full text-left text-sm">
-            <thead class="bg-[#f3f4f5] text-xs uppercase tracking-[0.06em] text-[#3e494a]">
-                <tr>
-                    <th class="px-5 py-3">Received</th>
-                    <th class="px-5 py-3">Category</th>
-                    <th class="px-5 py-3">Type</th>
-                    <th class="px-5 py-3">Patient Visit</th>
-                    <th class="px-5 py-3">Amount</th>
-                    <th class="px-5 py-3">Payment</th>
-                    <th class="px-5 py-3">User</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-[#bec8ca]">
-                @forelse ($incomeEntries as $entry)
-                    <tr>
-                        <td class="px-5 py-4 text-[#3e494a]">{{ $entry->received_at->format('M d, Y H:i') }}</td>
-                        <td class="px-5 py-4 font-medium">{{ $entry->incomeCategory->name }}</td>
-                        <td class="px-5 py-4 capitalize text-[#3e494a]">{{ $entry->incomeCategory->type }}</td>
-                        <td class="px-5 py-4 text-[#3e494a]">
-                            @if ($entry->patientVisit)
-                                {{ $entry->patientVisit->patient_name }} ({{ $entry->patientVisit->age }})<br>
-                                <span class="text-xs">{{ $entry->patientVisit->visited_at->format('M d, Y H:i') }}</span>
-                            @else
-                                —
-                            @endif
-                        </td>
-                        <td class="px-5 py-4 font-medium">{{ number_format($entry->amount, 2) }}</td>
-                        <td class="px-5 py-4 capitalize">{{ str_replace('_', ' ', $entry->payment_method) }}</td>
-                        <td class="px-5 py-4 text-[#3e494a]">{{ $entry->receivedBy?->name ?: '—' }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="7" class="px-5 py-8 text-center text-[#3e494a]">No income entries in range.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    <div class="mt-4">{{ $incomeEntries->links() }}</div>
+    @include('finance.income._unified-income-table', ['lines' => $unifiedIncomeLines, 'showActions' => false])
 @endsection

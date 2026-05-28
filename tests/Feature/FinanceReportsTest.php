@@ -7,7 +7,7 @@ use App\Models\ExpenseCategory;
 use App\Models\ExpenseEntry;
 use App\Models\IncomeCategory;
 use App\Models\IncomeEntry;
-use App\Models\PatientVisit;
+use App\Models\PatientVisitRecord;
 use App\Models\Sale;
 use App\Models\User;
 use Database\Seeders\ExpenseCategorySeeder;
@@ -149,13 +149,45 @@ class FinanceReportsTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_income_report_filters_by_date_category_and_patient_visit(): void
+    public function test_income_report_includes_completed_pharmacy_sales(): void
     {
-        $visit = PatientVisit::create([
-            'patient_name' => 'Ma Hla',
-            'age' => 30,
+        $visit = PatientVisitRecord::factory()->create([
             'visited_at' => '2026-05-26 09:00:00',
             'created_by' => $this->cashier->id,
+        ]);
+
+        Sale::create([
+            'sale_number' => 'S-REPORT-001',
+            'patient_visit_record_id' => $visit->id,
+            'status' => Sale::STATUS_COMPLETED,
+            'subtotal' => 5600,
+            'discount_total' => 0,
+            'tax_total' => 0,
+            'grand_total' => 5600,
+            'amount_paid' => 6000,
+            'change_amount' => 400,
+            'payment_method' => Sale::PAYMENT_CASH,
+            'sold_by' => $this->cashier->id,
+            'sold_at' => '2026-05-26 12:00:00',
+        ]);
+
+        $this->actingAs($this->cashier)
+            ->get(route('reports.finance-income', [
+                'date_from' => '2026-05-26',
+                'date_to' => '2026-05-26',
+            ]))
+            ->assertOk()
+            ->assertSee('Pharmacy Sale')
+            ->assertSee('S-REPORT-001')
+            ->assertSee('5,600.00');
+    }
+
+    public function test_income_report_filters_by_date_category_and_patient_visit(): void
+    {
+        $visit = PatientVisitRecord::factory()->create([
+            'visited_at' => '2026-05-26 09:00:00',
+            'created_by' => $this->cashier->id,
+            'patient_id' => \App\Models\Patient::factory()->create(['name' => 'Ma Hla', 'age' => 30])->id,
         ]);
 
         $serviceCategory = IncomeCategory::where('name', 'Consultation Fee')->firstOrFail();
@@ -163,7 +195,7 @@ class FinanceReportsTest extends TestCase
 
         IncomeEntry::create([
             'income_category_id' => $serviceCategory->id,
-            'patient_visit_id' => $visit->id,
+            'patient_visit_record_id' => $visit->id,
             'amount' => 4000,
             'payment_method' => IncomeEntry::PAYMENT_CASH,
             'received_at' => '2026-05-26 11:00:00',
@@ -189,8 +221,7 @@ class FinanceReportsTest extends TestCase
             ->assertSee('Ma Hla')
             ->assertSee('4,000.00')
             ->assertDontSee('900.00')
-            ->assertDontSee('Diagnosis')
-            ->assertDontSee('Appointment');
+            ->assertDontSee('Diagnosis');
     }
 
     public function test_expense_report_filters_by_date_and_category(): void

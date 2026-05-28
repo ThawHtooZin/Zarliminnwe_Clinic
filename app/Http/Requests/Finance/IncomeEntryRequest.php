@@ -19,6 +19,7 @@ class IncomeEntryRequest extends FormRequest
             '_token',
             'income_category_id',
             'patient_visit_id',
+            'patient_visit_record_id',
             'amount',
             'payment_method',
             'received_at',
@@ -33,7 +34,8 @@ class IncomeEntryRequest extends FormRequest
     {
         return [
             'income_category_id' => ['required', 'integer', 'exists:income_categories,id'],
-            'patient_visit_id' => ['nullable', 'integer', 'exists:patient_visits,id'],
+            'patient_visit_id' => ['nullable', 'integer', 'exists:patient_visit_records,id'],
+            'patient_visit_record_id' => ['nullable', 'integer', 'exists:patient_visit_records,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_method' => ['required', Rule::in(IncomeEntry::paymentMethods())],
             'received_at' => ['required', 'date'],
@@ -68,15 +70,17 @@ class IncomeEntryRequest extends FormRequest
         $data = $this->safe()->only([
             'income_category_id',
             'patient_visit_id',
+            'patient_visit_record_id',
             'amount',
             'payment_method',
             'received_at',
             'description',
         ]);
 
-        if (blank($data['patient_visit_id'] ?? null)) {
-            $data['patient_visit_id'] = null;
-        }
+        $visitRecordId = $data['patient_visit_record_id'] ?? $data['patient_visit_id'] ?? null;
+        unset($data['patient_visit_id']);
+
+        $data['patient_visit_record_id'] = blank($visitRecordId) ? null : (int) $visitRecordId;
 
         return $data;
     }

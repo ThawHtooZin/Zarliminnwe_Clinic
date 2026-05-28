@@ -13,7 +13,7 @@ class SaleController extends Controller
     public function index(Request $request): View
     {
         $sales = Sale::query()
-            ->with('cashier')
+            ->with(['cashier', 'patientVisitRecord.patient'])
             ->when($request->string('status')->toString(), function ($query, string $status): void {
                 $query->where('status', $status);
             })
@@ -36,7 +36,7 @@ class SaleController extends Controller
 
     public function show(Sale $sale): View
     {
-        $sale->load(['cashier', 'voidedBy', 'lines.product', 'lines.productUnit']);
+        $sale->load(['cashier', 'voidedBy', 'patientVisitRecord.patient', 'lines.product', 'lines.productUnit']);
 
         $stockMovements = StockLedger::query()
             ->with(['product', 'productUnit', 'stockBatch', 'creator'])

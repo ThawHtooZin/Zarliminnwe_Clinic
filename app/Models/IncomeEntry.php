@@ -22,7 +22,7 @@ class IncomeEntry extends Model
 
     protected $fillable = [
         'income_category_id',
-        'patient_visit_id',
+        'patient_visit_record_id',
         'amount',
         'payment_method',
         'received_at',
@@ -57,9 +57,17 @@ class IncomeEntry extends Model
         return $this->belongsTo(IncomeCategory::class);
     }
 
+    public function patientVisitRecord(): BelongsTo
+    {
+        return $this->belongsTo(PatientVisitRecord::class);
+    }
+
+    /**
+     * @deprecated Use patientVisitRecord() instead.
+     */
     public function patientVisit(): BelongsTo
     {
-        return $this->belongsTo(PatientVisit::class);
+        return $this->patientVisitRecord();
     }
 
     public function receivedBy(): BelongsTo

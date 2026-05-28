@@ -29,7 +29,7 @@ class Sale extends Model
 
     protected $fillable = [
         'sale_number',
-        'patient_visit_id',
+        'patient_visit_record_id',
         'status',
         'subtotal',
         'discount_total',
@@ -73,6 +73,11 @@ class Sale extends Model
     public function voidedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    public function patientVisitRecord(): BelongsTo
+    {
+        return $this->belongsTo(PatientVisitRecord::class);
     }
 
     public function isCompletable(): bool

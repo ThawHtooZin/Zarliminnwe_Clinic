@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Finance;
 
+use App\Domain\Administration\Services\PermissionResolver;
 use App\Domain\Finance\Services\IncomeEntryService;
+use App\Domain\Finance\Services\UnifiedIncomeQueryService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Finance\IncomeEntryRequest;
 use App\Models\IncomeCategory;
 use App\Models\IncomeEntry;
-use App\Models\PatientVisit;
+use App\Models\PatientVisitRecord;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,36 +19,30 @@ use InvalidArgumentException;
 
 class IncomeEntryController extends Controller
 {
-    public function __construct(private readonly IncomeEntryService $incomeEntryService) {}
+    public function __construct(
+        private readonly IncomeEntryService $incomeEntryService,
+        private readonly UnifiedIncomeQueryService $unifiedIncomeQueryService,
+        private readonly PermissionResolver $permissionResolver,
+    ) {}
 
     public function index(Request $request): View
     {
         $filters = $request->validate([
             'received_from' => ['nullable', 'date'],
             'received_to' => ['nullable', 'date'],
-            'income_category_id' => ['nullable', 'integer', 'exists:income_categories,id'],
+            'income_category_id' => ['nullable', $this->incomeCategoryFilterRule()],
             'payment_method' => ['nullable', Rule::in(IncomeEntry::paymentMethods())],
-            'patient_visit_id' => ['nullable', 'integer', 'exists:patient_visits,id'],
+            'patient_visit_id' => ['nullable', 'integer', 'exists:patient_visit_records,id'],
             'received_by' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
-        $incomeEntries = IncomeEntry::query()
-            ->with(['incomeCategory', 'patientVisit', 'receivedBy'])
-            ->when($filters['received_from'] ?? null, fn ($query, string $from) => $query->whereDate('received_at', '>=', $from))
-            ->when($filters['received_to'] ?? null, fn ($query, string $to) => $query->whereDate('received_at', '<=', $to))
-            ->when($filters['income_category_id'] ?? null, fn ($query, int $categoryId) => $query->where('income_category_id', $categoryId))
-            ->when($filters['payment_method'] ?? null, fn ($query, string $method) => $query->where('payment_method', $method))
-            ->when($filters['patient_visit_id'] ?? null, fn ($query, int $visitId) => $query->where('patient_visit_id', $visitId))
-            ->when($filters['received_by'] ?? null, fn ($query, int $userId) => $query->where('received_by', $userId))
-            ->latest('received_at')
-            ->paginate(15)
-            ->withQueryString();
+        $unifiedIncomeLines = $this->unifiedIncomeQueryService->paginatedForFilters($filters, 15);
 
         return view('finance.income.index', [
-            'incomeEntries' => $incomeEntries,
+            'unifiedIncomeLines' => $unifiedIncomeLines,
             'filters' => $filters,
             'categories' => IncomeCategory::query()->orderBy('name')->get(),
-            'patientVisits' => PatientVisit::query()->latest('visited_at')->limit(100)->get(),
+            'patientVisits' => PatientVisitRecord::query()->with('patient')->latest('visited_at')->limit(100)->get(),
             'users' => User::query()->orderBy('name')->get(),
         ]);
     }
@@ -57,19 +53,21 @@ class IncomeEntryController extends Controller
 
         return view('finance.income.form', [
             'incomeEntry' => new IncomeEntry([
-                'patient_visit_id' => $prefilledVisitId,
+                'patient_visit_record_id' => $prefilledVisitId,
                 'received_at' => now(),
                 'payment_method' => IncomeEntry::PAYMENT_CASH,
             ]),
             'categories' => IncomeCategory::active()->orderBy('name')->get(),
-            'patientVisits' => PatientVisit::query()->latest('visited_at')->get(),
+            'patientVisits' => PatientVisitRecord::query()->with('patient')->latest('visited_at')->get(),
         ]);
     }
 
     public function store(IncomeEntryRequest $request): RedirectResponse
     {
+        $patientVisitRecordId = (int) ($request->incomeEntryData()['patient_visit_record_id'] ?? 0);
+
         try {
-            $entry = $this->incomeEntryService->create(
+            $this->incomeEntryService->create(
                 $request->incomeEntryData(),
                 $request->user()
             );
@@ -77,7 +75,8 @@ class IncomeEntryController extends Controller
             return back()->withErrors(['form' => $exception->getMessage()])->withInput();
         }
 
-        return redirect()->route('finance.income.index')->with('status', 'Income entry recorded.');
+        return $this->redirectAfterIncomeSave($request->user(), $patientVisitRecordId)
+            ->with('status', 'Income entry recorded.');
     }
 
     public function edit(IncomeEntry $incomeEntry): View
@@ -85,7 +84,7 @@ class IncomeEntryController extends Controller
         return view('finance.income.form', [
             'incomeEntry' => $incomeEntry,
             'categories' => IncomeCategory::active()->orderBy('name')->get(),
-            'patientVisits' => PatientVisit::query()->latest('visited_at')->get(),
+            'patientVisits' => PatientVisitRecord::query()->with('patient')->latest('visited_at')->get(),
         ]);
     }
 
@@ -97,6 +96,44 @@ class IncomeEntryController extends Controller
             return back()->withErrors(['form' => $exception->getMessage()])->withInput();
         }
 
-        return redirect()->route('finance.income.index')->with('status', 'Income entry updated.');
+        return $this->redirectAfterIncomeSave($request->user(), (int) ($incomeEntry->patient_visit_record_id ?? 0))
+            ->with('status', 'Income entry updated.');
+    }
+
+    private function redirectAfterIncomeSave(User $user, int $patientVisitRecordId): RedirectResponse
+    {
+        if ($patientVisitRecordId > 0 && $this->permissionResolver->canAccessRoute($user, 'patient-visits.show')) {
+            return redirect()->route('patient-visits.show', $patientVisitRecordId);
+        }
+
+        if ($this->permissionResolver->canAccessRoute($user, 'finance.income.index')) {
+            return redirect()->route('finance.income.index');
+        }
+
+        if ($this->permissionResolver->canAccessRoute($user, 'sales.pos')) {
+            return redirect()->route('sales.pos');
+        }
+
+        return redirect()->route('dashboard');
+    }
+
+    /**
+     * @return \Closure(string, mixed, \Closure): void
+     */
+    private function incomeCategoryFilterRule(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+
+            if ($value === UnifiedIncomeQueryService::PHARMACY_SALE_FILTER) {
+                return;
+            }
+
+            if (! is_numeric($value) || ! IncomeCategory::query()->whereKey((int) $value)->exists()) {
+                $fail('The selected category is invalid.');
+            }
+        };
     }
 }

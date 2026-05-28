@@ -25,6 +25,10 @@ class StockLedger extends Model
 
     public const TYPE_ADJUSTMENT = 'adjustment';
 
+    public const TYPE_UNIT_UNPACK_OUT = 'unit_unpack_out';
+
+    public const TYPE_UNIT_UNPACK_IN = 'unit_unpack_in';
+
     protected $fillable = [
         'product_id',
         'stock_batch_id',

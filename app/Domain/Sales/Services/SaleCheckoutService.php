@@ -4,10 +4,11 @@ namespace App\Domain\Sales\Services;
 
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Inventory\Services\StockPostingService;
-use App\Domain\Units\Services\UnitRelationshipService;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\Sale;
+use App\Models\SaleLine;
+use App\Models\SaleLineStockAllocation;
 use App\Models\StockBalance;
 use App\Models\StockLedger;
 use App\Models\User;
@@ -18,7 +19,7 @@ class SaleCheckoutService
 {
     public function __construct(
         private readonly SaleNumberGenerator $saleNumberGenerator,
-        private readonly UnitRelationshipService $unitRelationshipService,
+        private readonly PosStockAvailabilityService $posStockAvailabilityService,
         private readonly StockPostingService $stockPostingService,
         private readonly AuditLogger $auditLogger
     ) {}
@@ -35,7 +36,7 @@ class SaleCheckoutService
 
             $sale = Sale::create([
                 'sale_number' => $this->saleNumberGenerator->generate(),
-                'patient_visit_id' => $paymentData['patient_visit_id'] ?? null,
+                'patient_visit_record_id' => $paymentData['patient_visit_record_id'] ?? $paymentData['patient_visit_id'] ?? null,
                 'status' => Sale::STATUS_DRAFT,
                 'payment_method' => $paymentData['payment_method'] ?? Sale::PAYMENT_CASH,
                 'notes' => $paymentData['notes'] ?? null,
@@ -45,6 +46,7 @@ class SaleCheckoutService
                 $sale->lines()->create([
                     'product_id' => $line['product']->id,
                     'product_unit_id' => $line['unit']->id,
+                    'use_parent_breakdown' => false,
                     'quantity' => $line['quantity'],
                     'unit_price' => $line['unit_price'],
                     'discount_amount' => 0,
@@ -77,6 +79,7 @@ class SaleCheckoutService
                 $sale->lines()->create([
                     'product_id' => $line['product']->id,
                     'product_unit_id' => $line['unit']->id,
+                    'use_parent_breakdown' => false,
                     'quantity' => $line['quantity'],
                     'unit_price' => $line['unit_price'],
                     'discount_amount' => 0,
@@ -115,24 +118,50 @@ class SaleCheckoutService
                 ->lockForUpdate()
                 ->get();
 
-            $deductions = $this->unitRelationshipService->calculateDeduction($balances, $line->productUnit, $line->quantity);
+            $steps = $this->posStockAvailabilityService->calculateFulfillmentSteps(
+                $balances,
+                $line->productUnit,
+                (float) $line->quantity
+            );
 
-            foreach ($deductions as $deduction) {
-                $deductionData = (array) $deduction;
+            foreach ($steps as $step) {
+                $stepData = (array) $step;
                 /** @var StockBalance $balance */
-                $balance = $deductionData['balance'];
+                $balance = $stepData['balance'];
+                $balance->loadMissing('productUnit', 'stockBatch');
 
-                $this->stockPostingService->postMovement(
-                    product: $line->product,
-                    unit: $balance->productUnit,
-                    quantity: $deductionData['quantity'],
-                    type: StockLedger::TYPE_SALE,
-                    direction: StockLedger::DIRECTION_OUT,
-                    unitCost: 0,
-                    reference: $sale,
-                    stockBatch: $balance->stockBatch,
-                    reason: 'Sale '.$sale->sale_number
-                );
+                match ($stepData['action']) {
+                    'unpack_out' => $this->stockPostingService->postMovement(
+                        product: $line->product,
+                        unit: $balance->productUnit,
+                        quantity: $stepData['quantity'],
+                        type: StockLedger::TYPE_UNIT_UNPACK_OUT,
+                        direction: StockLedger::DIRECTION_OUT,
+                        unitCost: 0,
+                        reference: $sale,
+                        stockBatch: $balance->stockBatch,
+                        reason: 'Auto-unpack for sale '.$sale->sale_number
+                    ),
+                    'unpack_in' => $this->stockPostingService->postMovement(
+                        product: $line->product,
+                        unit: $balance->productUnit,
+                        quantity: $stepData['quantity'],
+                        type: StockLedger::TYPE_UNIT_UNPACK_IN,
+                        direction: StockLedger::DIRECTION_IN,
+                        unitCost: 0,
+                        reference: $sale,
+                        stockBatch: $balance->stockBatch,
+                        reason: 'Auto-unpack for sale '.$sale->sale_number
+                    ),
+                    'sale_out' => $this->postSaleOutAllocation(
+                        sale: $sale,
+                        line: $line,
+                        balance: $balance,
+                        quantity: $stepData['quantity'],
+                        saleUnitQuantity: $stepData['sale_unit_quantity']
+                    ),
+                    default => throw new InvalidArgumentException('Unknown stock fulfillment step.'),
+                };
             }
         }
 
@@ -170,7 +199,7 @@ class SaleCheckoutService
         foreach ($cartLines as $cartLine) {
             $productId = $cartLine['productId'] ?? $cartLine['product_id'] ?? null;
             $unitId = $cartLine['unitId'] ?? $cartLine['product_unit_id'] ?? null;
-            $quantity = (float) ($cartLine['quantity'] ?? 0);
+            $quantity = (int) round((float) ($cartLine['quantity'] ?? 0));
             $unitPrice = (float) ($cartLine['unitPrice'] ?? $cartLine['unit_price'] ?? 0);
 
             $product = Product::find($productId);
@@ -188,6 +217,7 @@ class SaleCheckoutService
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'line_total' => $quantity * $unitPrice,
+                'use_parent_breakdown' => false,
             ];
         }
 
@@ -212,9 +242,57 @@ class SaleCheckoutService
             throw new InvalidArgumentException('Sale quantity must be greater than zero.');
         }
 
+        if (abs($quantity - round($quantity)) > 0.000001) {
+            throw new InvalidArgumentException('Sale quantity must be a whole number.');
+        }
+
         if ($unitPrice < 0) {
             throw new InvalidArgumentException('Unit price cannot be negative.');
         }
+
+        $balances = StockBalance::query()
+            ->with(['productUnit'])
+            ->where('product_id', $product->id)
+            ->where('quantity', '>', 0)
+            ->get();
+
+        $availability = $this->posStockAvailabilityService->availabilityForUnit($balances, $unit);
+
+        if (! $availability['is_available']) {
+            throw new InvalidArgumentException('Insufficient stock for the selected unit.');
+        }
+
+        if ((int) round($quantity) > $availability['max_qty']) {
+            throw new InvalidArgumentException('Requested quantity exceeds available stock.');
+        }
+    }
+
+    private function postSaleOutAllocation(
+        Sale $sale,
+        SaleLine $line,
+        StockBalance $balance,
+        int $quantity,
+        int $saleUnitQuantity
+    ): void {
+        $this->stockPostingService->postMovement(
+            product: $line->product,
+            unit: $balance->productUnit,
+            quantity: $quantity,
+            type: StockLedger::TYPE_SALE,
+            direction: StockLedger::DIRECTION_OUT,
+            unitCost: 0,
+            reference: $sale,
+            stockBatch: $balance->stockBatch,
+            reason: 'Sale '.$sale->sale_number
+        );
+
+        $line->stockAllocations()->create([
+            'stock_balance_id' => $balance->exists ? $balance->id : null,
+            'product_unit_id' => $line->product_unit_id,
+            'allocation_type' => SaleLineStockAllocation::TYPE_DIRECT,
+            'quantity' => $quantity,
+            'sale_unit_quantity' => $saleUnitQuantity,
+        ]);
     }
 
     /**

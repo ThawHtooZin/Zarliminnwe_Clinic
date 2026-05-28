@@ -30,7 +30,8 @@ class PosController extends Controller
         $validated = $request->validate([
             'cart_payload' => ['required', 'json'],
             'held_sale_id' => ['nullable', 'exists:sales,id'],
-            'patient_visit_id' => ['nullable', 'integer'],
+            'patient_visit_record_id' => ['nullable', 'integer', 'exists:patient_visit_records,id'],
+            'patient_visit_id' => ['nullable', 'integer', 'exists:patient_visit_records,id'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],
             'tax_total' => ['nullable', 'numeric', 'min:0'],
             'amount_paid' => ['required', 'numeric', 'min:0'],
@@ -46,7 +47,7 @@ class PosController extends Controller
 
         try {
             $paymentData = [
-                'patient_visit_id' => $validated['patient_visit_id'] ?? null,
+                'patient_visit_record_id' => $validated['patient_visit_record_id'] ?? $validated['patient_visit_id'] ?? null,
                 'discount_total' => $validated['discount_total'] ?? 0,
                 'tax_total' => $validated['tax_total'] ?? 0,
                 'amount_paid' => $validated['amount_paid'],
@@ -72,7 +73,8 @@ class PosController extends Controller
         $validated = $request->validate([
             'cart_payload' => ['required', 'json'],
             'held_sale_id' => ['nullable', 'exists:sales,id'],
-            'patient_visit_id' => ['nullable', 'integer'],
+            'patient_visit_record_id' => ['nullable', 'integer', 'exists:patient_visit_records,id'],
+            'patient_visit_id' => ['nullable', 'integer', 'exists:patient_visit_records,id'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],
             'tax_total' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['nullable', 'string', 'in:'.implode(',', [
@@ -87,7 +89,7 @@ class PosController extends Controller
 
         try {
             $sale = $this->saleHoldService->hold($request->user(), $cartLines, [
-                'patient_visit_id' => $validated['patient_visit_id'] ?? null,
+                'patient_visit_record_id' => $validated['patient_visit_record_id'] ?? $validated['patient_visit_id'] ?? null,
                 'discount_total' => $validated['discount_total'] ?? 0,
                 'tax_total' => $validated['tax_total'] ?? 0,
                 'payment_method' => $validated['payment_method'] ?? Sale::PAYMENT_CASH,
