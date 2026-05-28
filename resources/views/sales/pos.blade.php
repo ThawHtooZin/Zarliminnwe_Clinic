@@ -15,6 +15,9 @@
     @endif
 
     @php
+        $currencyCode = config('app.currency_code', 'MMK');
+        $currencyLabel = config('app.currency', 'MMK');
+
         $heldSaleCart = $heldSale?->lines->map(function ($line) {
             return [
                 'key' => 'held-'.$line->id,
@@ -45,18 +48,18 @@
     @endif
 
     <div
-        class="grid min-h-[calc(100vh-7rem)] grid-cols-[minmax(0,1fr)_480px] overflow-hidden rounded-lg border border-[#bec8ca] bg-white shadow-sm"
+        class="grid min-h-[calc(100vh-7rem)] grid-cols-1 overflow-hidden rounded-lg border border-[#bec8ca] bg-white shadow-sm xl:grid-cols-[minmax(0,1fr)_480px]"
         x-data="posCart()"
         x-init="initializePos()"
     >
-        <section class="flex min-w-0 flex-col bg-[#f8f9fa] p-6">
+        <section class="flex min-w-0 flex-col bg-[#f8f9fa] p-4 sm:p-6">
             <div class="mb-6 space-y-4">
-                <div class="flex items-center justify-between">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 class="text-2xl font-semibold text-[#00535b]">Point of Sale</h1>
+                        <h1 class="text-xl font-semibold text-[#00535b] sm:text-2xl">Point of Sale</h1>
                         <p class="mt-1 text-sm text-[#3e494a]">Search products and sell by configured units.</p>
                     </div>
-                    <span class="rounded border border-[#bec8ca] bg-white px-3 py-2 text-sm text-[#3e494a]">
+                    <span class="inline-flex w-fit rounded border border-[#bec8ca] bg-white px-3 py-2 text-sm text-[#3e494a]">
                         Product Search
                     </span>
                 </div>
@@ -78,7 +81,7 @@
             </div>
             <p x-show="errorMessage" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="errorMessage"></p>
 
-            <div class="grid grid-cols-4 gap-3 overflow-y-auto pr-1">
+            <div class="grid grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 <template x-for="product in products" :key="product.id">
                     <article class="rounded-lg border border-[#bec8ca] bg-white p-4 shadow-sm">
                         <div class="mb-3 flex h-40 items-center justify-center overflow-hidden rounded-xl border border-[#bec8ca] bg-[#e8f3f4]">
@@ -112,14 +115,14 @@
                     </article>
                 </template>
 
-                <div x-show="products.length === 0" class="col-span-3 rounded-lg border border-dashed border-[#bec8ca] bg-white p-10 text-center text-sm text-[#3e494a]">
+                <div x-show="products.length === 0" class="rounded-lg border border-dashed border-[#bec8ca] bg-white p-10 text-center text-sm text-[#3e494a] sm:col-span-2 lg:col-span-3 2xl:col-span-4">
                     No products found.
                 </div>
             </div>
         </section>
 
-        <aside class="flex min-h-0 flex-col border-l border-[#bec8ca] bg-white">
-            <section class="border-b border-[#bec8ca] bg-[#f3f4f5] p-6">
+        <aside class="flex min-h-0 flex-col border-t border-[#bec8ca] bg-white xl:border-l xl:border-t-0">
+            <section class="border-b border-[#bec8ca] bg-[#f3f4f5] p-4 sm:p-6">
                 <label class="mb-2 block text-xs font-bold uppercase tracking-[0.06em] text-[#6f797a]">Patient Information (Optional)</label>
                 <select x-model="patientVisitId" class="w-full rounded border border-[#bec8ca] bg-white px-4 py-3 text-sm text-[#191c1d] shadow-sm">
                     <option value="">No patient selected</option>
@@ -159,7 +162,7 @@
                                 <button type="button" x-on:click="removeLine(index)" class="text-xs font-medium text-red-600">Remove</button>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-3">
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <label class="text-xs text-[#3e494a]">
                                     Unit
                                     <select x-model.number="line.unitId" x-on:change="changeUnit(line)" class="mt-1 w-full rounded border border-[#bec8ca] bg-[#f8f9fa] px-2 py-2 text-sm text-[#191c1d]">
@@ -197,19 +200,19 @@
                 </div>
             </section>
 
-            <section class="border-t border-[#bec8ca] bg-[#edeeef] p-6">
+            <section class="border-t border-[#bec8ca] bg-[#edeeef] p-4 sm:p-6">
                 <div class="space-y-3">
                     <div class="flex justify-between text-sm text-[#3e494a]">
                         <span>Subtotal</span>
                         <span x-text="money(subtotal())"></span>
                     </div>
-                    <label class="flex items-center justify-between gap-4 text-sm text-[#3e494a]">
+                    <label class="flex items-center justify-between gap-3 text-sm text-[#3e494a]">
                         <span>Discount</span>
-                        <input x-model.number="discount" type="number" min="0" step="0.01" class="w-28 rounded border border-[#bec8ca] bg-white px-3 py-2 text-right text-sm">
+                        <input x-model.number="discount" type="number" min="0" step="0.01" class="w-24 rounded border border-[#bec8ca] bg-white px-3 py-2 text-right text-sm sm:w-28">
                     </label>
                     <div class="flex justify-between text-sm text-[#3e494a]">
                         <span>Tax</span>
-                        <span>{{ config('app.currency', '') }}<span x-text="tax.toFixed(2)"></span></span>
+                        <span>{{ $currencyLabel }} <span x-text="tax.toFixed(2)"></span></span>
                     </div>
                     <div class="flex justify-between border-t border-[#bec8ca] pt-3 text-lg font-bold text-[#191c1d]">
                         <span>Grand Total</span>
@@ -396,7 +399,8 @@
                 money(amount) {
                     return new Intl.NumberFormat('en-US', {
                         style: 'currency',
-                        currency: 'USD',
+                        currency: @js($currencyCode),
+                        maximumFractionDigits: 0,
                     }).format(Number(amount || 0));
                 },
             };
