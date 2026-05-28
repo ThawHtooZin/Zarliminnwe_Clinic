@@ -42,8 +42,7 @@ class FoundationTest extends TestCase
             ->assertOk()
             ->assertSee('Dashboard')
             ->assertSee('Go to POS')
-            ->assertDontSee('New Purchase Receipt')
-            ->assertDontSee('Appointments');
+            ->assertDontSee('New Purchase Receipt');
     }
 
     public function test_user_has_minimal_role_support(): void

@@ -93,7 +93,7 @@
                 </div>
                 <div class="text-right">
                     <p class="text-xs font-medium uppercase tracking-[0.06em] text-[#3e494a]">Patient</p>
-                    <p class="mt-1 text-[#191c1d]">{{ $sale->patient_visit_id ?: 'No patient' }}</p>
+                    <p class="mt-1 text-[#191c1d]">{{ $sale->patientVisitRecord?->patient_name ?: 'No patient' }}</p>
                 </div>
             </section>
 

@@ -28,6 +28,14 @@ class AuthenticatedSessionController extends Controller
                 ->onlyInput('email');
         }
 
+        if (! Auth::user()?->isActive()) {
+            Auth::logout();
+
+            return back()
+                ->withErrors(['email' => 'This account is inactive. Contact an administrator.'])
+                ->onlyInput('email');
+        }
+
         $request->session()->regenerate();
 
         return redirect()->intended(route('dashboard'));

@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\IncomeCategory;
 use App\Models\IncomeEntry;
-use App\Models\PatientVisit;
+use App\Models\PatientVisitRecord;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductUnit;
@@ -40,7 +40,7 @@ class IncomeTrackingTest extends TestCase
         $this->assertTrue(Schema::hasColumns('income_entries', [
             'id',
             'income_category_id',
-            'patient_visit_id',
+            'patient_visit_record_id',
             'amount',
             'payment_method',
             'received_at',
@@ -61,11 +61,11 @@ class IncomeTrackingTest extends TestCase
 
         $this->actingAs($this->cashier)
             ->post(route('finance.income.store'), $this->validPayload($category, $visit))
-            ->assertRedirect(route('finance.income.index'));
+            ->assertRedirect(route('patient-visits.show', $visit));
 
         $entry = IncomeEntry::firstOrFail();
 
-        $this->assertSame($visit->id, $entry->patient_visit_id);
+        $this->assertSame($visit->id, $entry->patient_visit_record_id);
         $this->assertSame(5000.0, (float) $entry->amount);
         $this->assertSame($this->cashier->id, $entry->received_by);
         $this->assertDatabaseHas('audit_logs', [
@@ -85,7 +85,7 @@ class IncomeTrackingTest extends TestCase
 
         $entry = IncomeEntry::firstOrFail();
 
-        $this->assertNull($entry->patient_visit_id);
+        $this->assertNull($entry->patient_visit_record_id);
     }
 
     public function test_income_create_rejects_pharmacy_sale_fields(): void
@@ -160,8 +160,7 @@ class IncomeTrackingTest extends TestCase
             ->assertSee('Record Income Entry')
             ->assertSee($visit->patient_name)
             ->assertDontSee('Diagnosis')
-            ->assertDontSee('Prescription')
-            ->assertDontSee('Appointment');
+            ->assertDontSee('Prescription');
     }
 
     public function test_income_list_filters_by_date_and_category(): void
@@ -195,6 +194,48 @@ class IncomeTrackingTest extends TestCase
             ->assertDontSee('2,000.00');
     }
 
+    public function test_income_index_lists_completed_pharmacy_sale_with_pseudo_category(): void
+    {
+        $visit = $this->createPatientVisit();
+        $category = IncomeCategory::where('name', 'Consultation Fee')->firstOrFail();
+
+        IncomeEntry::create([
+            'income_category_id' => $category->id,
+            'patient_visit_record_id' => $visit->id,
+            'amount' => 1500,
+            'payment_method' => IncomeEntry::PAYMENT_CASH,
+            'received_at' => '2026-05-26 09:00:00',
+            'received_by' => $this->cashier->id,
+        ]);
+
+        Sale::create([
+            'sale_number' => 'S-INDEX-001',
+            'patient_visit_record_id' => $visit->id,
+            'status' => Sale::STATUS_COMPLETED,
+            'subtotal' => 4200,
+            'discount_total' => 0,
+            'tax_total' => 0,
+            'grand_total' => 4200,
+            'amount_paid' => 4200,
+            'change_amount' => 0,
+            'payment_method' => Sale::PAYMENT_CASH,
+            'sold_by' => $this->cashier->id,
+            'sold_at' => '2026-05-26 10:00:00',
+        ]);
+
+        $this->actingAs($this->cashier)
+            ->get(route('finance.income.index', [
+                'received_from' => '2026-05-26',
+                'received_to' => '2026-05-26',
+            ]))
+            ->assertOk()
+            ->assertSee('Pharmacy Sale')
+            ->assertSee('S-INDEX-001')
+            ->assertSee('4,200.00')
+            ->assertSee('Consultation Fee')
+            ->assertSee('1,500.00');
+    }
+
     public function test_guest_and_stock_manager_cannot_access_income_entries(): void
     {
         $this->get(route('finance.income.index'))->assertRedirect(route('login'));
@@ -209,7 +250,7 @@ class IncomeTrackingTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function validPayload(IncomeCategory $category, ?PatientVisit $visit = null): array
+    private function validPayload(IncomeCategory $category, ?PatientVisitRecord $visit = null): array
     {
         return [
             'income_category_id' => $category->id,
@@ -221,11 +262,9 @@ class IncomeTrackingTest extends TestCase
         ];
     }
 
-    private function createPatientVisit(): PatientVisit
+    private function createPatientVisit(): PatientVisitRecord
     {
-        return PatientVisit::create([
-            'patient_name' => 'U Aung',
-            'age' => 45,
+        return PatientVisitRecord::factory()->create([
             'visited_at' => '2026-05-26 09:00:00',
             'created_by' => $this->cashier->id,
         ]);

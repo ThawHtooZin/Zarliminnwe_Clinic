@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Reports;
 
 use App\Domain\Finance\Services\FinanceReportService;
 use App\Domain\Finance\Services\FinanceSummaryService;
+use App\Domain\Finance\Services\UnifiedIncomeQueryService;
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseEntry;
 use App\Models\IncomeCategory;
 use App\Models\IncomeEntry;
-use App\Models\PatientVisit;
+use App\Models\PatientVisitRecord;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -40,10 +41,10 @@ class FinanceReportController extends Controller
         $filters = $this->incomeReportFilters($request);
 
         return view('reports.finance-income', [
-            'incomeEntries' => $this->financeReportService->incomeReport($filters),
+            'unifiedIncomeLines' => $this->financeReportService->incomeReport($filters),
             'filters' => $filters,
             'categories' => IncomeCategory::query()->orderBy('name')->get(),
-            'patientVisits' => PatientVisit::query()->latest('visited_at')->limit(100)->get(),
+            'patientVisits' => PatientVisitRecord::query()->with('patient')->latest('visited_at')->limit(100)->get(),
             'users' => User::query()->orderBy('name')->get(),
         ]);
     }
@@ -84,9 +85,9 @@ class FinanceReportController extends Controller
         $filters = $request->validate([
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
-            'income_category_id' => ['nullable', 'integer', 'exists:income_categories,id'],
+            'income_category_id' => ['nullable', $this->incomeCategoryFilterRule()],
             'payment_method' => ['nullable', Rule::in(IncomeEntry::paymentMethods())],
-            'patient_visit_id' => ['nullable', 'integer', 'exists:patient_visits,id'],
+            'patient_visit_id' => ['nullable', 'integer', 'exists:patient_visit_records,id'],
             'received_by' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
@@ -120,5 +121,25 @@ class FinanceReportController extends Controller
         $filters['date_to'] = $filters['date_to'] ?? now()->toDateString();
 
         return $filters;
+    }
+
+    /**
+     * @return \Closure(string, mixed, \Closure): void
+     */
+    private function incomeCategoryFilterRule(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+
+            if ($value === UnifiedIncomeQueryService::PHARMACY_SALE_FILTER) {
+                return;
+            }
+
+            if (! is_numeric($value) || ! IncomeCategory::query()->whereKey((int) $value)->exists()) {
+                $fail('The selected category is invalid.');
+            }
+        };
     }
 }

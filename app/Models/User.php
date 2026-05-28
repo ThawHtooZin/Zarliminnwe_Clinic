@@ -7,10 +7,11 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'role'])]
+#[Fillable(['name', 'email', 'password', 'role_id', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -25,6 +26,45 @@ class User extends Authenticatable
 
     public const ROLE_CASHIER = 'cashier';
 
+    public function assignedRole(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+
+    public function getRoleAttribute(): ?string
+    {
+        return $this->assignedRole?->slug;
+    }
+
+    public function fill(array $attributes)
+    {
+        if (isset($attributes['role']) && ! isset($attributes['role_id'])) {
+            $roleId = Role::query()->where('slug', $attributes['role'])->value('id');
+
+            unset($attributes['role']);
+
+            if ($roleId !== null) {
+                $attributes['role_id'] = $roleId;
+            }
+        }
+
+        return parent::fill($attributes);
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (User $user): void {
+            if (array_key_exists('role', $user->getAttributes())) {
+                $slug = $user->getAttributes()['role'];
+                unset($user->attributes['role']);
+
+                if ($user->role_id === null) {
+                    $user->role_id = Role::query()->where('slug', $slug)->value('id');
+                }
+            }
+        });
+    }
+
     public function hasRole(string ...$roles): bool
     {
         return in_array($this->role, $roles, true);
@@ -33,6 +73,11 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->hasRole(self::ROLE_ADMIN);
+    }
+
+    public function isActive(): bool
+    {
+        return (bool) $this->is_active;
     }
 
     /**
@@ -45,6 +90,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
     }
 }

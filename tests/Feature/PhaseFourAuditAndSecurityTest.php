@@ -7,7 +7,7 @@ use App\Models\ExpenseCategory;
 use App\Models\ExpenseEntry;
 use App\Models\IncomeCategory;
 use App\Models\IncomeEntry;
-use App\Models\PatientVisit;
+use App\Models\PatientVisitRecord;
 use App\Models\User;
 use Database\Seeders\ExpenseCategorySeeder;
 use Database\Seeders\IncomeCategorySeeder;
@@ -59,10 +59,10 @@ class PhaseFourAuditAndSecurityTest extends TestCase
 
     public function test_cashier_can_manage_patient_visits_income_and_expenses(): void
     {
+        $patient = \App\Models\Patient::factory()->create(['created_by' => $this->cashier->id]);
+
         $this->actingAs($this->cashier)
-            ->post(route('patient-visits.store'), [
-                'patient_name' => 'U Kyaw',
-                'age' => 40,
+            ->post(route('patients.visit-records.store', $patient), [
                 'visited_at' => '2026-05-26 09:00:00',
             ])
             ->assertRedirect();
@@ -88,7 +88,8 @@ class PhaseFourAuditAndSecurityTest extends TestCase
             ])
             ->assertRedirect(route('finance.expenses.index'));
 
-        $this->assertDatabaseCount('patient_visits', 1);
+        $this->assertDatabaseCount('patients', 1);
+        $this->assertDatabaseCount('patient_visit_records', 1);
         $this->assertDatabaseCount('income_entries', 1);
         $this->assertDatabaseCount('expense_entries', 1);
     }
@@ -216,42 +217,28 @@ class PhaseFourAuditAndSecurityTest extends TestCase
         ]);
     }
 
-    public function test_patient_visit_update_is_audited_with_allowed_fields_only(): void
+    public function test_patient_visit_update_is_audited_when_visit_time_changes(): void
     {
-        $visit = PatientVisit::create([
-            'patient_name' => 'Ma Hla',
-            'age' => 30,
+        $patient = \App\Models\Patient::factory()->create(['name' => 'Ma Hla', 'age' => 30, 'created_by' => $this->cashier->id]);
+        $visit = PatientVisitRecord::factory()->create([
             'visited_at' => '2026-05-26 09:00:00',
             'created_by' => $this->cashier->id,
+            'patient_id' => $patient->id,
         ]);
 
         $this->actingAs($this->cashier)
-            ->from(route('patient-visits.edit', $visit))
-            ->put(route('patient-visits.update', $visit), [
-                'patient_name' => 'Ma Hla Updated',
-                'age' => 31,
-                'visited_at' => '2026-05-27 09:00:00',
-                'diagnosis' => 'Should not save',
-            ])
-            ->assertRedirect(route('patient-visits.edit', $visit))
-            ->assertSessionHasErrors('diagnosis');
-
-        $this->actingAs($this->cashier)
-            ->put(route('patient-visits.update', $visit), [
-                'patient_name' => 'Ma Hla Updated',
-                'age' => 31,
+            ->put(route('patients.visit-records.update', [$patient, $visit]), [
                 'visited_at' => '2026-05-27 09:00:00',
             ])
             ->assertRedirect(route('patient-visits.show', $visit));
 
         $audit = AuditLog::query()
-            ->where('action', 'patient_visit.updated')
+            ->where('action', 'patient_visit_record.updated')
             ->where('auditable_id', $visit->id)
             ->firstOrFail();
 
-        $this->assertSame('Ma Hla', $audit->old_values['patient_name']);
-        $this->assertSame('Ma Hla Updated', $audit->new_values['patient_name']);
-        $this->assertArrayNotHasKey('diagnosis', $audit->new_values);
+        $this->assertStringContainsString('2026-05-26', (string) ($audit->old_values['visited_at'] ?? ''));
+        $this->assertStringContainsString('2026-05-27', (string) ($audit->new_values['visited_at'] ?? ''));
     }
 
     /**
@@ -260,8 +247,7 @@ class PhaseFourAuditAndSecurityTest extends TestCase
     private function phaseFourRoutes(): array
     {
         return [
-            route('patient-visits.index'),
-            route('patient-visits.create'),
+            route('patients.index'),
             route('finance.income.index'),
             route('finance.income.create'),
             route('finance.expenses.index'),

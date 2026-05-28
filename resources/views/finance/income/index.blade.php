@@ -7,9 +7,9 @@
     <div class="mb-6 flex items-center justify-between">
         <div>
             <h1 class="text-3xl font-semibold text-[#191c1d]">Income Entries</h1>
-            <p class="mt-1 text-sm text-[#3e494a]">Service and general clinic income. Pharmacy POS sales are recorded separately.</p>
+            <p class="mt-1 text-sm text-[#3e494a]">Service income and completed pharmacy POS sales in one list. Sales are not duplicated into income entries.</p>
         </div>
-        <a href="{{ route('finance.income.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">Record Income</a>
+        <a href="{{ route('finance.income.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">Record Service Income</a>
     </div>
 
     @if (session('status'))
@@ -30,6 +30,7 @@
                 <label class="mb-2 block text-sm font-medium">Category</label>
                 <select name="income_category_id" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm outline-none focus:border-[#00535b]">
                     <option value="">All</option>
+                    <option value="{{ \App\Domain\Finance\Services\UnifiedIncomeQueryService::PHARMACY_SALE_FILTER }}" @selected(($filters['income_category_id'] ?? '') === \App\Domain\Finance\Services\UnifiedIncomeQueryService::PHARMACY_SALE_FILTER)>Pharmacy Sale</option>
                     @foreach ($categories as $category)
                         <option value="{{ $category->id }}" @selected(($filters['income_category_id'] ?? '') == $category->id)>{{ $category->name }}</option>
                     @endforeach
@@ -42,6 +43,7 @@
                     @foreach (\App\Models\IncomeEntry::paymentMethods() as $method)
                         <option value="{{ $method }}" @selected(($filters['payment_method'] ?? '') === $method)>{{ ucfirst(str_replace('_', ' ', $method)) }}</option>
                     @endforeach
+                    <option value="{{ \App\Models\Sale::PAYMENT_MIXED }}" @selected(($filters['payment_method'] ?? '') === \App\Models\Sale::PAYMENT_MIXED)>Mixed</option>
                 </select>
             </div>
             <div>
@@ -71,52 +73,5 @@
         </div>
     </form>
 
-    <div class="overflow-hidden rounded-lg border border-[#bec8ca] bg-white">
-        <table class="w-full text-left text-sm">
-            <thead class="bg-[#f3f4f5] text-xs uppercase tracking-[0.06em] text-[#3e494a]">
-                <tr>
-                    <th class="px-5 py-3">Received</th>
-                    <th class="px-5 py-3">Category</th>
-                    <th class="px-5 py-3">Patient Visit</th>
-                    <th class="px-5 py-3">Amount</th>
-                    <th class="px-5 py-3">Payment</th>
-                    <th class="px-5 py-3">Received By</th>
-                    <th class="px-5 py-3 text-right">Action</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-[#bec8ca]">
-                @forelse ($incomeEntries as $entry)
-                    <tr>
-                        <td class="px-5 py-4 text-[#3e494a]">{{ $entry->received_at->format('M d, Y H:i') }}</td>
-                        <td class="px-5 py-4">
-                            <span class="font-medium text-[#191c1d]">{{ $entry->incomeCategory->name }}</span>
-                            <span class="block text-xs capitalize text-[#3e494a]">{{ $entry->incomeCategory->type }}</span>
-                        </td>
-                        <td class="px-5 py-4 text-[#3e494a]">
-                            @if ($entry->patientVisit)
-                                <a href="{{ route('patient-visits.show', $entry->patientVisit) }}" class="text-[#00535b]">
-                                    {{ $entry->patientVisit->patient_name }} ({{ $entry->patientVisit->age }})
-                                </a>
-                                <span class="block text-xs">{{ $entry->patientVisit->visited_at->format('M d, Y H:i') }}</span>
-                            @else
-                                —
-                            @endif
-                        </td>
-                        <td class="px-5 py-4 font-medium text-[#191c1d]">{{ number_format($entry->amount, 2) }}</td>
-                        <td class="px-5 py-4 capitalize text-[#3e494a]">{{ str_replace('_', ' ', $entry->payment_method) }}</td>
-                        <td class="px-5 py-4 text-[#3e494a]">{{ $entry->receivedBy?->name ?: '—' }}</td>
-                        <td class="px-5 py-4 text-right">
-                            <a href="{{ route('finance.income.edit', $entry) }}" class="font-medium text-[#00535b]">Edit</a>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="7" class="px-5 py-8 text-center text-[#3e494a]">No income entries yet.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    <div class="mt-4">{{ $incomeEntries->links() }}</div>
+    @include('finance.income._unified-income-table', ['lines' => $unifiedIncomeLines, 'showActions' => true])
 @endsection

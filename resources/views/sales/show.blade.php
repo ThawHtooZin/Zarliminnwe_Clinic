@@ -120,7 +120,7 @@
                 <h2 class="mb-4 text-lg font-semibold">Sale Info</h2>
                 <div class="space-y-3 text-sm">
                     <div><span class="block text-[#3e494a]">Cashier</span><span>{{ $sale->cashier?->name ?: '-' }}</span></div>
-                    <div><span class="block text-[#3e494a]">Patient</span><span>{{ $sale->patient_visit_id ?: 'No patient' }}</span></div>
+                    <div><span class="block text-[#3e494a]">Patient</span><span>{{ $sale->patientVisitRecord?->patient->patient_code ? $sale->patientVisitRecord->patient->patient_code.' — '.$sale->patientVisitRecord->patient_name : 'No patient' }}</span></div>
                     <div><span class="block text-[#3e494a]">Status</span><span class="capitalize">{{ $sale->status }}</span></div>
                     @if ($sale->status === \App\Models\Sale::STATUS_VOIDED)
                         <div><span class="block text-[#3e494a]">Voided By</span><span>{{ $sale->voidedBy?->name ?: '-' }}</span></div>

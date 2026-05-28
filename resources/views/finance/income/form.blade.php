@@ -6,7 +6,7 @@
 @section('content')
     <div class="mb-6">
         <h1 class="text-3xl font-semibold text-[#191c1d]">{{ $incomeEntry->exists ? 'Edit Income Entry' : 'Record Income Entry' }}</h1>
-        <p class="mt-1 text-sm text-[#3e494a]">Patient visit is optional. Pharmacy POS sales stay in Sales and are not copied here.</p>
+        <p class="mt-1 text-sm text-[#3e494a]">Record service or general income only. Pharmacy POS sales appear automatically on the income list from completed sales.</p>
     </div>
 
     @error('form')
@@ -38,8 +38,8 @@
                 <select name="patient_visit_id" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm outline-none focus:border-[#00535b]">
                     <option value="">No patient visit</option>
                     @foreach ($patientVisits as $visit)
-                        <option value="{{ $visit->id }}" @selected(old('patient_visit_id', $incomeEntry->patient_visit_id) == $visit->id)>
-                            {{ $visit->patient_name }} — Age {{ $visit->age }} — {{ $visit->visited_at->format('M d, Y H:i') }}
+                        <option value="{{ $visit->id }}" @selected(old('patient_visit_id', $incomeEntry->patient_visit_record_id) == $visit->id)>
+                            {{ $visit->patient->patient_code }} — {{ $visit->patient_name }} — {{ $visit->visited_at->format('M d, Y H:i') }}
                         </option>
                     @endforeach
                 </select>

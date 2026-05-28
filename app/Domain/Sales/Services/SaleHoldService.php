@@ -36,7 +36,7 @@ class SaleHoldService
             ]);
 
             $sale->fill([
-                'patient_visit_id' => $saleData['patient_visit_id'] ?? null,
+                'patient_visit_record_id' => $saleData['patient_visit_record_id'] ?? $saleData['patient_visit_id'] ?? null,
                 'status' => Sale::STATUS_HELD,
                 'subtotal' => $totals['subtotal'],
                 'discount_total' => $totals['discount_total'],
@@ -55,6 +55,7 @@ class SaleHoldService
                 $sale->lines()->create([
                     'product_id' => $line['product']->id,
                     'product_unit_id' => $line['unit']->id,
+                    'use_parent_breakdown' => $line['use_parent_breakdown'],
                     'quantity' => $line['quantity'],
                     'unit_price' => $line['unit_price'],
                     'discount_amount' => 0,
@@ -85,7 +86,7 @@ class SaleHoldService
         foreach ($cartLines as $cartLine) {
             $productId = $cartLine['productId'] ?? $cartLine['product_id'] ?? null;
             $unitId = $cartLine['unitId'] ?? $cartLine['product_unit_id'] ?? null;
-            $quantity = (float) ($cartLine['quantity'] ?? 0);
+            $quantity = (int) round((float) ($cartLine['quantity'] ?? 0));
             $unitPrice = (float) ($cartLine['unitPrice'] ?? $cartLine['unit_price'] ?? 0);
 
             $product = Product::find($productId);
@@ -121,6 +122,7 @@ class SaleHoldService
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'line_total' => $quantity * $unitPrice,
+                'use_parent_breakdown' => false,
             ];
         }
 

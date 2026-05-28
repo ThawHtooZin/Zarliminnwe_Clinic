@@ -2,7 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\PatientVisit;
+use App\Models\Patient;
+use App\Models\PatientVisitRecord;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
@@ -25,212 +26,111 @@ class PatientVisitFoundationTest extends TestCase
         ]);
     }
 
-    public function test_patient_visits_table_has_only_ultra_minimal_business_columns(): void
+    public function test_patient_module_tables_exist_with_expected_columns(): void
     {
-        $this->assertTrue(Schema::hasColumns('patient_visits', [
+        $this->assertTrue(Schema::hasColumns('patients', [
             'id',
-            'patient_name',
+            'patient_code',
+            'name',
             'age',
-            'visited_at',
+            'address',
             'created_by',
             'created_at',
             'updated_at',
         ]));
 
-        foreach ($this->forbiddenColumns() as $column) {
-            $this->assertFalse(Schema::hasColumn('patient_visits', $column), $column.' must not exist.');
-        }
+        $this->assertTrue(Schema::hasColumns('patient_visit_records', [
+            'id',
+            'patient_id',
+            'visited_at',
+            'status',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]));
+
+        $this->assertFalse(Schema::hasTable('patient_visits'));
     }
 
-    public function test_patient_visit_model_uses_only_allowed_fillable_fields(): void
+    public function test_visit_can_only_be_created_from_patient_profile(): void
     {
-        $user = User::factory()->create(['role' => User::ROLE_ADMIN]);
-        $patientVisit = PatientVisit::create([
-            'patient_name' => 'Daw Mya',
-            'age' => 52,
-            'visited_at' => '2026-05-26 09:30:00',
-            'created_by' => $user->id,
-        ]);
+        $patient = Patient::factory()->create(['created_by' => $this->cashier->id]);
 
-        $this->assertTrue($patientVisit->createdBy->is($user));
-        $this->assertTrue(method_exists($patientVisit, 'incomeEntries'));
-        $this->assertTrue($patientVisit->isFillable('patient_name'));
-        $this->assertTrue($patientVisit->isFillable('age'));
-        $this->assertTrue($patientVisit->isFillable('visited_at'));
-        $this->assertFalse($patientVisit->isFillable('diagnosis'));
-        $this->assertFalse($patientVisit->isFillable('appointment_at'));
-    }
-
-    public function test_authorized_user_can_create_patient_visit_and_action_is_audited(): void
-    {
         $this->actingAs($this->cashier)
-            ->post(route('patient-visits.store'), $this->validPayload())
+            ->post(route('patients.visit-records.store', $patient), [
+                'visited_at' => '2026-05-26 09:30:00',
+            ])
             ->assertRedirect();
 
-        $patientVisit = PatientVisit::firstOrFail();
+        $record = PatientVisitRecord::query()->firstOrFail();
 
-        $this->assertSame('U Aung', $patientVisit->patient_name);
-        $this->assertSame(45, $patientVisit->age);
-        $this->assertSame($this->cashier->id, $patientVisit->created_by);
+        $this->assertSame($patient->id, $record->patient_id);
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $this->cashier->id,
-            'action' => 'patient_visit.created',
-            'auditable_type' => PatientVisit::class,
-            'auditable_id' => $patientVisit->id,
+            'action' => 'patient_visit_record.created',
+            'auditable_type' => PatientVisitRecord::class,
+            'auditable_id' => $record->id,
         ]);
     }
 
-    public function test_authorized_user_can_update_allowed_patient_visit_fields(): void
-    {
-        $patientVisit = PatientVisit::create($this->validPayload() + [
-            'created_by' => $this->cashier->id,
-        ]);
-
-        $this->actingAs($this->cashier)
-            ->put(route('patient-visits.update', $patientVisit), [
-                'patient_name' => 'Daw Hla',
-                'age' => 46,
-                'visited_at' => '2026-05-27 10:15:00',
-            ])
-            ->assertRedirect(route('patient-visits.show', $patientVisit));
-
-        $patientVisit->refresh();
-
-        $this->assertSame('Daw Hla', $patientVisit->patient_name);
-        $this->assertSame(46, $patientVisit->age);
-        $this->assertDatabaseHas('audit_logs', [
-            'user_id' => $this->cashier->id,
-            'action' => 'patient_visit.updated',
-            'auditable_type' => PatientVisit::class,
-            'auditable_id' => $patientVisit->id,
-        ]);
-    }
-
-    public function test_patient_visit_validation_rejects_clinical_fields(): void
+    public function test_standalone_patient_visit_routes_are_not_available(): void
     {
         $this->actingAs($this->cashier)
-            ->from(route('patient-visits.create'))
-            ->post(route('patient-visits.store'), $this->validPayload() + [
-                'diagnosis' => 'Fever',
-                'vitals' => 'High temperature',
-                'prescription' => 'Medication note',
-                'clinical_notes' => 'Clinical note',
-                'medical_history' => 'Past illness',
-            ])
-            ->assertRedirect(route('patient-visits.create'))
-            ->assertSessionHasErrors([
-                'diagnosis',
-                'vitals',
-                'prescription',
-                'clinical_notes',
-                'medical_history',
-            ]);
+            ->get('/patient-visits/create')
+            ->assertNotFound();
 
-        $this->assertDatabaseCount('patient_visits', 0);
-    }
-
-    public function test_patient_visit_validation_rejects_appointment_fields(): void
-    {
         $this->actingAs($this->cashier)
-            ->from(route('patient-visits.create'))
-            ->post(route('patient-visits.store'), $this->validPayload() + [
-                'doctor_id' => 1,
-                'appointment_at' => '2026-05-27 09:00:00',
-                'appointment_status' => 'booked',
-                'queue_number' => 'Q-001',
-            ])
-            ->assertRedirect(route('patient-visits.create'))
-            ->assertSessionHasErrors([
-                'doctor_id',
-                'appointment_at',
-                'appointment_status',
-                'queue_number',
-            ]);
-
-        $this->assertDatabaseCount('patient_visits', 0);
+            ->get('/patient-visits')
+            ->assertNotFound();
     }
 
-    public function test_patient_visit_form_does_not_render_ehr_or_appointment_fields(): void
+    public function test_patient_scoped_visit_form_only_shows_visit_time(): void
     {
-        $this->actingAs($this->cashier)
-            ->get(route('patient-visits.create'))
-            ->assertOk()
-            ->assertSee('Patient Name')
-            ->assertSee('Age')
-            ->assertSee('Visit Time')
-            ->assertDontSee('Diagnosis')
-            ->assertDontSee('Prescription')
-            ->assertDontSee('Vitals')
-            ->assertDontSee('Appointment')
-            ->assertDontSee('Doctor')
-            ->assertDontSee('Queue');
-    }
-
-    public function test_patient_visit_list_filters_by_name_and_visit_date(): void
-    {
-        PatientVisit::create([
-            'patient_name' => 'U Aung',
+        $patient = Patient::factory()->create([
+            'name' => 'U Aung',
             'age' => 45,
-            'visited_at' => '2026-05-26 09:30:00',
-            'created_by' => $this->cashier->id,
-        ]);
-        PatientVisit::create([
-            'patient_name' => 'Daw Mya',
-            'age' => 52,
-            'visited_at' => '2026-05-20 09:30:00',
             'created_by' => $this->cashier->id,
         ]);
 
         $this->actingAs($this->cashier)
-            ->get(route('patient-visits.index', [
-                'patient_name' => 'Aung',
-                'visited_from' => '2026-05-26',
-                'visited_to' => '2026-05-26',
-            ]))
+            ->get(route('patients.visit-records.create', $patient))
             ->assertOk()
             ->assertSee('U Aung')
-            ->assertDontSee('Daw Mya');
+            ->assertSee('Visit Time')
+            ->assertDontSee('name="patient_name"', false)
+            ->assertDontSee('name="age"', false);
     }
 
-    public function test_guest_and_stock_manager_cannot_access_patient_visits(): void
+    public function test_authorized_user_can_update_visit_time_from_patient_profile(): void
     {
-        $this->get(route('patient-visits.index'))->assertRedirect(route('login'));
-
-        $stockManager = User::factory()->create(['role' => User::ROLE_STOCK_MANAGER]);
-
-        $this->actingAs($stockManager)
-            ->get(route('patient-visits.index'))
-            ->assertForbidden();
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function validPayload(): array
-    {
-        return [
-            'patient_name' => 'U Aung',
-            'age' => 45,
+        $patient = Patient::factory()->create(['created_by' => $this->cashier->id]);
+        $record = PatientVisitRecord::factory()->create([
+            'patient_id' => $patient->id,
             'visited_at' => '2026-05-26 09:30:00',
-        ];
+            'created_by' => $this->cashier->id,
+        ]);
+
+        $this->actingAs($this->cashier)
+            ->put(route('patients.visit-records.update', [$patient, $record]), [
+                'visited_at' => '2026-05-27 10:15:00',
+            ])
+            ->assertRedirect(route('patient-visits.show', $record));
+
+        $record->refresh();
+
+        $this->assertSame('2026-05-27 10:15:00', $record->visited_at->format('Y-m-d H:i:s'));
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $this->cashier->id,
+            'action' => 'patient_visit_record.updated',
+            'auditable_type' => PatientVisitRecord::class,
+            'auditable_id' => $record->id,
+        ]);
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function forbiddenColumns(): array
+    public function test_guest_cannot_access_patient_visit_detail(): void
     {
-        return [
-            'diagnosis',
-            'symptoms',
-            'vitals',
-            'prescription',
-            'clinical_notes',
-            'medical_history',
-            'doctor_id',
-            'appointment_at',
-            'appointment_status',
-            'queue_number',
-        ];
+        $visit = PatientVisitRecord::factory()->create(['created_by' => $this->cashier->id]);
+
+        $this->get(route('patient-visits.show', $visit))->assertRedirect(route('login'));
     }
 }

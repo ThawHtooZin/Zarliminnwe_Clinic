@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Patient;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductUnit;
@@ -131,6 +132,34 @@ class SalesHistoryAndReceiptTest extends TestCase
             ->assertSee('@media print', false)
             ->assertSee('size: 80mm auto', false)
             ->assertSee('window.print()', false);
+    }
+
+    public function test_sale_detail_and_receipt_can_render_visit_patient_context(): void
+    {
+        $patient = Patient::factory()->create([
+            'name' => 'Visit Patient',
+            'age' => 33,
+        ]);
+        $visit = $patient->visitRecords()->create([
+            'visited_at' => now(),
+            'created_by' => $this->cashier->id,
+        ]);
+
+        $sale = $this->createSale('S-20260526-0010', Sale::STATUS_COMPLETED, now());
+        $sale->update([
+            'patient_visit_record_id' => $visit->id,
+        ]);
+
+        $this->actingAs($this->cashier)
+            ->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee($patient->patient_code)
+            ->assertSee('Visit Patient');
+
+        $this->actingAs($this->cashier)
+            ->get(route('sales.receipt', $sale))
+            ->assertOk()
+            ->assertSee('Visit Patient');
     }
 
     public function test_stock_manager_cannot_access_sales_history_or_receipt(): void

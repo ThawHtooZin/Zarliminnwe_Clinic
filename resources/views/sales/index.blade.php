@@ -53,7 +53,7 @@
                         <td class="px-5 py-4 font-medium text-[#191c1d]">{{ $sale->sale_number }}</td>
                         <td class="px-5 py-4 text-[#3e494a]">{{ $sale->sold_at?->format('M d, Y H:i') ?: '-' }}</td>
                         <td class="px-5 py-4 text-[#3e494a]">{{ $sale->cashier?->name ?: '-' }}</td>
-                        <td class="px-5 py-4 text-[#3e494a]">{{ $sale->patient_visit_id ?: 'No patient' }}</td>
+                        <td class="px-5 py-4 text-[#3e494a]">{{ $sale->patientVisitRecord?->patient->patient_code ?: 'No patient' }}</td>
                         <td class="px-5 py-4 font-semibold text-[#00535b]">{{ number_format((float) $sale->grand_total, 2) }}</td>
                         <td class="px-5 py-4">
                             <span class="rounded-full px-3 py-1 text-xs font-medium uppercase {{ $statusClasses }}">{{ $sale->status }}</span>
