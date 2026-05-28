@@ -27,17 +27,17 @@
 
 <aside
     class="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-[#bec8ca] bg-[#f8f9fa] px-4 py-6 transition-transform duration-200 xl:z-30"
-    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'"
+    :class="((window.innerWidth >= 1280) ? sidebarDesktopOpen : sidebarOpen) ? 'translate-x-0' : '-translate-x-full'"
 >
     <div class="mb-2 flex items-center justify-end xl:hidden">
         <button
             type="button"
             class="inline-flex h-8 w-8 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b]"
             x-on:click="sidebarOpen = false"
-            aria-label="Close navigation"
+            aria-label="Toggle navigation"
         >
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6l-12 12"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
             </svg>
         </button>
     </div>
