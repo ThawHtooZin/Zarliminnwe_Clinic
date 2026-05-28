@@ -62,7 +62,8 @@
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-medium">SKU</label>
-                    <input name="sku" value="{{ old('sku', $product->sku) }}" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm" required>
+                    <input name="sku" value="{{ old('sku', $product->sku) }}" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm" placeholder="Leave empty to auto-generate">
+                    <p class="mt-2 text-xs text-[#3e494a]">Optional. If empty, SKU is generated automatically (simple format).</p>
                     @error('sku')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div>

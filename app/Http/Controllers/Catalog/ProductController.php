@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -139,7 +140,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'product_category_id' => ['required', 'exists:product_categories,id'],
             'name' => ['required', 'string', 'max:255'],
-            'sku' => ['required', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($productId)],
+            'sku' => ['nullable', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($productId)],
             'generic_name' => ['nullable', 'string', 'max:255'],
             'manufacturer' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -188,7 +189,7 @@ class ProductController extends Controller
             'product' => [
                 'product_category_id' => $validated['product_category_id'],
                 'name' => $validated['name'],
-                'sku' => $validated['sku'],
+                'sku' => $this->resolveSku($validated['sku'] ?? null, $validated['name'], $productId),
                 'generic_name' => $validated['generic_name'] ?? null,
                 'manufacturer' => $validated['manufacturer'] ?? null,
                 'description' => $validated['description'] ?? null,
@@ -200,6 +201,32 @@ class ProductController extends Controller
             'units' => $units,
             'reorder_unit_index' => $reorderUnitIndex,
         ];
+    }
+
+    private function resolveSku(?string $requestedSku, string $productName, ?int $productId = null): string
+    {
+        $requestedSku = trim((string) $requestedSku);
+
+        if ($requestedSku !== '') {
+            return $requestedSku;
+        }
+
+        $namePrefix = Str::upper(Str::substr(preg_replace('/[^A-Za-z0-9]/', '', $productName) ?: 'PRD', 0, 4));
+
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $candidate = $namePrefix.'-'.Str::upper(Str::random(4));
+
+            $exists = Product::query()
+                ->where('sku', $candidate)
+                ->when($productId, fn ($query) => $query->where('id', '!=', $productId))
+                ->exists();
+
+            if (! $exists) {
+                return $candidate;
+            }
+        }
+
+        return 'PRD-'.Str::upper(Str::random(6));
     }
 
     private function storeProductImage(Request $request): ?string

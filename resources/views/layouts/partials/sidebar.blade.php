@@ -18,7 +18,7 @@
 @endphp
 
 <div
-    class="fixed inset-0 z-40 bg-black/30 lg:hidden"
+    class="fixed inset-0 z-40 bg-black/30 xl:hidden"
     x-show="sidebarOpen"
     x-transition.opacity
     x-on:click="sidebarOpen = false"
@@ -26,10 +26,10 @@
 ></div>
 
 <aside
-    class="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-[#bec8ca] bg-[#f8f9fa] px-4 py-6 transition-transform duration-200 lg:z-30"
-    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+    class="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-[#bec8ca] bg-[#f8f9fa] px-4 py-6 transition-transform duration-200 xl:z-30"
+    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'"
 >
-    <div class="mb-2 flex items-center justify-end lg:hidden">
+    <div class="mb-2 flex items-center justify-end xl:hidden">
         <button
             type="button"
             class="inline-flex h-8 w-8 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b]"
