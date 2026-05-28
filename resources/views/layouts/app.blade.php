@@ -12,11 +12,11 @@
 <body class="min-h-screen bg-[#f8f9fa] font-sans text-[#191c1d] antialiased" x-data="{ sidebarOpen: false }">
     @include('layouts.partials.sidebar')
 
-    <header class="fixed left-0 right-0 top-0 z-20 flex h-14 items-center justify-between border-b border-[#bec8ca] bg-[#f8f9fa] px-4 sm:px-6 lg:left-[260px]">
+    <header class="fixed left-0 right-0 top-0 z-20 flex h-14 items-center justify-between border-b border-[#bec8ca] bg-[#f8f9fa] px-4 sm:px-6 xl:left-[260px]">
         <div class="flex h-full items-center gap-3 sm:gap-6">
             <button
                 type="button"
-                class="inline-flex h-9 w-9 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b] lg:hidden"
+                class="inline-flex h-9 w-9 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b] xl:hidden"
                 x-on:click="sidebarOpen = true"
                 aria-label="Open navigation"
             >
@@ -39,7 +39,7 @@
         </div>
     </header>
 
-    <main class="min-h-screen pt-14 lg:pl-[260px]">
+    <main class="min-h-screen pt-14 xl:pl-[260px]">
         <div class="p-4 sm:p-6 lg:p-8">
             @yield('content')
         </div>
