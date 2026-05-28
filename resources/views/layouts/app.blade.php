@@ -14,12 +14,13 @@
 
     <header
         class="fixed left-0 right-0 top-0 z-20 flex h-14 items-center justify-between border-b border-[#bec8ca] bg-[#f8f9fa] px-4 sm:px-6"
-        :class="sidebarDesktopOpen ? 'xl:left-[260px]' : 'xl:left-0'"
+        :class="(window.innerWidth >= 1400 && sidebarDesktopOpen) ? 'left-[260px]' : 'left-0'"
     >
         <div class="flex h-full items-center gap-3 sm:gap-6">
             <button
                 type="button"
-                class="inline-flex h-9 w-9 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b] xl:hidden"
+                class="inline-flex h-9 w-9 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b]"
+                x-show="window.innerWidth < 1400"
                 x-on:click="sidebarOpen = true"
                 aria-label="Open navigation"
             >
@@ -29,7 +30,8 @@
             </button>
             <button
                 type="button"
-                class="hidden h-9 w-9 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b] xl:inline-flex"
+                class="inline-flex h-9 w-9 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b]"
+                x-show="window.innerWidth >= 1400"
                 x-on:click="sidebarDesktopOpen = !sidebarDesktopOpen"
                 :aria-label="sidebarDesktopOpen ? 'Collapse sidebar' : 'Expand sidebar'"
                 :class="sidebarDesktopOpen ? 'ring-2 ring-[#00535b]/15' : ''"
@@ -53,7 +55,7 @@
         </div>
     </header>
 
-    <main class="min-h-screen pt-14" :class="sidebarDesktopOpen ? 'xl:pl-[260px]' : 'xl:pl-0'">
+    <main class="min-h-screen pt-14" :class="(window.innerWidth >= 1400 && sidebarDesktopOpen) ? 'pl-[260px]' : 'pl-0'">
         <div class="p-4 sm:p-6 lg:p-8">
             @yield('content')
         </div>
