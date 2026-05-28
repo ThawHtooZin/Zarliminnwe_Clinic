@@ -123,4 +123,7 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'currency' => env('APP_CURRENCY', 'MMK'),
+    'currency_code' => env('APP_CURRENCY_CODE', 'MMK'),
+
 ];

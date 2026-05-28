@@ -373,6 +373,27 @@
 - Grouped scrollable sidebar (Main Features, Management, Configurations, Finance, Reports).
 - Finance & POS UI unification: Patient Visit detail and Finance Income screens show service income + pharmacy sales together (read-time merge; no DB duplication).
 - Strict Patient → Visit UI: no standalone visit list or standalone visit creation screen.
+- Dashboard analytics UI with pharmacy-first operations focus:
+  - Actionable Stock Alerts: low stock, expiring batches, pending stock counts.
+  - Daily Finance: today's service income, today's pharmacy sales, today's expenses, and 7-day revenue trend.
+  - Clinic Activity: today's patient visits.
+- Dashboard exclusions: complex EHR graphs, patient demographic charts, and deep accounting charts are intentionally excluded to keep the dashboard focused on daily operational actions and high-level financial health.
+
+##### Dashboard (Operational Analytics)
+
+- The dashboard shall prioritize daily operational alerts and high-level financial health only.
+- The dashboard shall show actionable stock alerts:
+  - Low stock count: products currently below reorder threshold.
+  - Expiring batches count: batches expiring within 30 days or already expired with remaining balance.
+  - Pending counts: stock counts with `draft` or `submitted` status.
+- The dashboard shall show daily finance:
+  - Today's service income total from `income_entries`.
+  - Today's completed pharmacy sales total from `sales`.
+  - Today's expense total from `expense_entries`.
+  - 7-day combined revenue trend (service income + completed pharmacy sales).
+- The dashboard shall show clinic activity:
+  - Today's patient visits count from `patient_visit_records`.
+- The dashboard shall explicitly exclude complex EHR graphs, patient demographic charts, and deep accounting charts.
 
 ## Coming In Later Phase 6 Epics
 

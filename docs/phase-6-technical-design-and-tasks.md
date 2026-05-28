@@ -37,6 +37,11 @@ This document is for technical design and Epic breakdown only. No application co
 
 - User management with admin password reset.
 - Role management and permission management (screen + route access only).
+- Dashboard analytics UI focused on pharmacy-first operations and high-level finance:
+  - Actionable stock alerts (low stock, expiring batches, pending stock counts).
+  - Daily finance cards (today's service income, today's pharmacy sales, today's expenses).
+  - 7-day revenue trend (service income + pharmacy sales).
+  - Clinic activity card (today's patient visits).
 - Grouped scrollable sidebar navigation.
 - Finance reference seeders wired for fresh environments.
 - POS add-to-cart stock validation.
@@ -50,6 +55,8 @@ This document is for technical design and Epic breakdown only. No application co
 
 - Phase 5 hardening program (deferred).
 - Full EHR (vitals, prescriptions as clinical records, lab results, treatment plans, medical notes library).
+- Complex EHR dashboard graphs and patient demographic charts.
+- Deep accounting charts and advanced financial analytics dashboards.
 - Insurance claims and third-party billing.
 - Patient portal or telemedicine.
 - Doctor scheduling boards and complex intake queue systems.
@@ -77,11 +84,36 @@ This document is for technical design and Epic breakdown only. No application co
 - Evolve Phase 4 patient data without breaking finance traceability.
 - Keep patient master data separate from per-visit clinical/financial records.
 - Use patient visit records as the POS patient context source.
+- Keep dashboard analytics actionable and lightweight for frontline staff:
+  - Emphasize operational alerts and today's financial health.
+  - Avoid non-operational visuals that increase cognitive load.
 - Reuse `UnitRelationshipService` for POS availability and integer auto-unpack; do not duplicate conversion math in Blade or Alpine.
 - Stock balances and POS deductions are **integer-only**. No fractional parent deductions (e.g. 0.5 boxes). When sale-unit stock is insufficient, checkout posts **1 whole parent unit OUT**, **conversion-factor child units IN** (auto-unpack), then **sale-unit OUT** for the sold quantity.
 - Represent parent-unit breakdown on sale lines in the database for auditability.
 - Replace hard-coded route role groups gradually with permission checks driven by data.
 - Keep every Epic shippable and testable in isolation.
+
+### 2.4 Dashboard Metrics Contract (Phase 6)
+
+Dashboard data points:
+
+- `lowStockCount`: Count of products currently below reorder threshold.
+- `expiringBatchesCount`: Count of `stock_batches` expiring within 30 days or already expired, with remaining `stock_balances.quantity > 0`.
+- `pendingCounts`: Count of `stock_counts` where status is `draft` or `submitted`.
+- `todayServiceIncome`: Sum of `income_entries.amount` for today (`received_at` date).
+- `todayPharmacySales`: Sum of `sales.grand_total` for completed sales today (`sold_at` date).
+- `todayExpenses`: Sum of `expense_entries.amount` for today (`expense_date`).
+- `todayPatientVisits`: Count of `patient_visit_records` created today.
+- `revenueTrend`: Last 7 days grouped daily combined revenue (`service income + completed pharmacy sales`).
+
+Dashboard visualization rules:
+
+- Keep the dashboard to three sections only:
+  - Actionable Alerts.
+  - Today's Overview.
+  - 7-Day Revenue Trend.
+- Do not add complex EHR charts, patient demographic analysis charts, or deep accounting dashboards.
+- Use design-system card styling (`bg-white border border-gray-200 rounded-lg shadow-sm`) and primary brand text (`text-[#00535b]`).
 
 ### 2.2 Proposed Domain Modules
 

@@ -17,7 +17,30 @@
     }
 @endphp
 
-<aside class="fixed inset-y-0 left-0 z-30 flex w-[260px] flex-col border-r border-[#bec8ca] bg-[#f8f9fa] px-4 py-6">
+<div
+    class="fixed inset-0 z-40 bg-black/30 lg:hidden"
+    x-show="sidebarOpen"
+    x-transition.opacity
+    x-on:click="sidebarOpen = false"
+    style="display: none;"
+></div>
+
+<aside
+    class="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-[#bec8ca] bg-[#f8f9fa] px-4 py-6 transition-transform duration-200 lg:z-30"
+    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+>
+    <div class="mb-2 flex items-center justify-end lg:hidden">
+        <button
+            type="button"
+            class="inline-flex h-8 w-8 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b]"
+            x-on:click="sidebarOpen = false"
+            aria-label="Close navigation"
+        >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6l-12 12"/>
+            </svg>
+        </button>
+    </div>
     <a href="{{ route('dashboard') }}" class="flex shrink-0 items-center gap-3 px-2 pb-6">
         <span class="flex h-10 w-10 items-center justify-center overflow-hidden rounded border border-[#bec8ca] bg-white">
             <img src="{{ asset('images/zlmnlogo.jpg') }}" alt="Zarli Min Nwe Clinic logo" class="h-full w-full object-cover">
@@ -91,6 +114,7 @@
                             @php($active = request()->routeIs($item['match']))
                             <a
                                 href="{{ route($item['route']) }}"
+                                x-on:click="sidebarOpen = false"
                                 class="flex items-center gap-3 rounded px-3 py-2.5 text-sm transition {{ $active ? 'bg-[#00535b08] text-[#00535b]' : 'text-[#3e494a] hover:bg-white hover:text-[#00535b]' }}"
                             >
                                 <span class="flex h-5 w-5 items-center justify-center rounded text-[11px] font-semibold {{ $active ? 'bg-[#00535b] text-white' : 'bg-[#e1e3e4] text-[#3e494a]' }}">
