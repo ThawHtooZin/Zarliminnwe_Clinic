@@ -52,7 +52,7 @@ class SaleCheckoutTest extends TestCase
         $sale = Sale::with('lines')->firstOrFail();
 
         $this->assertSame(Sale::STATUS_COMPLETED, $sale->status);
-        $this->assertNull($sale->patient_visit_id);
+        $this->assertNull($sale->patient_visit_record_id);
         $this->assertSame($this->cashier->id, $sale->sold_by);
         $this->assertSame($product->id, $sale->lines->first()->product_id);
         $this->assertSame($strip->id, $sale->lines->first()->product_unit_id);
@@ -90,11 +90,11 @@ class SaleCheckoutTest extends TestCase
         $this->assertSame(Sale::class, $ledger->reference_type);
     }
 
-    public function test_fractional_checkout_deducts_from_larger_unit_balance(): void
+    public function test_integer_unpack_checkout_deducts_whole_parent_units(): void
     {
-        [$product, $box, , $pill] = $this->createProductWithUnits();
+        [$product, $box, $strip, $pill] = $this->createProductWithUnits();
 
-        $balance = StockBalance::create([
+        $boxBalance = StockBalance::create([
             'product_id' => $product->id,
             'product_unit_id' => $box->id,
             'quantity' => 1,
@@ -106,18 +106,36 @@ class SaleCheckoutTest extends TestCase
             ], 2000))
             ->assertRedirect(route('sales.pos'));
 
-        $balance->refresh();
-        $ledger = StockLedger::where('type', StockLedger::TYPE_SALE)->firstOrFail();
+        $boxBalance->refresh();
         $saleLine = Sale::firstOrFail()->lines()->firstOrFail();
 
         $this->assertSame($pill->id, $saleLine->product_unit_id);
         $this->assertSame(5.0, (float) $saleLine->quantity);
-        $this->assertSame(0.95, (float) $balance->quantity);
-        $this->assertSame($box->id, $ledger->product_unit_id);
-        $this->assertSame(0.05, (float) $ledger->quantity);
+        $this->assertSame(0.0, (float) $boxBalance->quantity);
+
+        $unpackOuts = StockLedger::where('type', StockLedger::TYPE_UNIT_UNPACK_OUT)->get();
+
+        $this->assertSame(2, $unpackOuts->count());
+        $this->assertTrue($unpackOuts->every(fn (StockLedger $ledger): bool => (float) $ledger->quantity === 1.0));
+
+        $stripBalance = StockBalance::query()
+            ->where('product_id', $product->id)
+            ->where('product_unit_id', $strip->id)
+            ->first();
+
+        $this->assertNotNull($stripBalance);
+        $this->assertSame(9.0, (float) $stripBalance->quantity);
+
+        $pillBalance = StockBalance::query()
+            ->where('product_id', $product->id)
+            ->where('product_unit_id', $pill->id)
+            ->first();
+
+        $this->assertNotNull($pillBalance);
+        $this->assertSame(5.0, (float) $pillBalance->quantity);
     }
 
-    public function test_checkout_can_split_deduction_across_multiple_balances(): void
+    public function test_checkout_can_split_deduction_across_direct_stock_and_integer_unpack(): void
     {
         [$product, $box, $strip, $pill] = $this->createProductWithUnits();
 
@@ -140,15 +158,14 @@ class SaleCheckoutTest extends TestCase
 
         $stripBalance->refresh();
         $boxBalance->refresh();
-        $ledgers = StockLedger::where('type', StockLedger::TYPE_SALE)->orderBy('id')->get();
 
-        $this->assertSame(0.0, (float) $stripBalance->quantity);
-        $this->assertSame(0.9, (float) $boxBalance->quantity);
-        $this->assertCount(2, $ledgers);
-        $this->assertSame($strip->id, $ledgers[0]->product_unit_id);
-        $this->assertSame(2.0, (float) $ledgers[0]->quantity);
-        $this->assertSame($box->id, $ledgers[1]->product_unit_id);
-        $this->assertSame(0.1, (float) $ledgers[1]->quantity);
+        $this->assertSame(9.0, (float) $stripBalance->quantity);
+        $this->assertSame(0.0, (float) $boxBalance->quantity);
+
+        $saleLedgers = StockLedger::where('type', StockLedger::TYPE_SALE)->orderBy('id')->get();
+
+        $this->assertTrue($saleLedgers->every(fn (StockLedger $ledger): bool => (float) $ledger->quantity === floor((float) $ledger->quantity)));
+        $this->assertSame(30.0, (float) $saleLedgers->sum('quantity'));
     }
 
     public function test_checkout_rejects_insufficient_stock_without_mutating_database(): void
@@ -175,6 +192,32 @@ class SaleCheckoutTest extends TestCase
         $this->assertDatabaseCount('sales', 0);
         $this->assertDatabaseCount('sale_lines', 0);
         $this->assertDatabaseCount('stock_ledgers', 0);
+    }
+
+    public function test_checkout_persists_direct_sale_allocations_after_auto_unpack(): void
+    {
+        [$product, $box, , $pill] = $this->createProductWithUnits();
+
+        StockBalance::create([
+            'product_id' => $product->id,
+            'product_unit_id' => $box->id,
+            'quantity' => 1,
+        ]);
+
+        $this->actingAs($this->cashier)
+            ->post(route('sales.store'), $this->checkoutPayload([
+                ['productId' => $product->id, 'unitId' => $pill->id, 'quantity' => 10, 'unitPrice' => 300],
+            ], 5000))
+            ->assertRedirect(route('sales.pos'));
+
+        /** @var \App\Models\SaleLine $saleLine */
+        $saleLine = Sale::query()->with('lines.stockAllocations')->firstOrFail()->lines->firstOrFail();
+        $allocations = $saleLine->stockAllocations;
+
+        $this->assertGreaterThan(0, $allocations->count());
+        $this->assertTrue($allocations->every(fn ($allocation): bool => $allocation->allocation_type === 'direct'));
+        $this->assertSame($pill->id, $allocations->first()->product_unit_id);
+        $this->assertSame(10.0, (float) $allocations->sum('sale_unit_quantity'));
     }
 
     /**

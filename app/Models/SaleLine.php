@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SaleLine extends Model
 {
@@ -14,6 +15,7 @@ class SaleLine extends Model
         'sale_id',
         'product_id',
         'product_unit_id',
+        'use_parent_breakdown',
         'quantity',
         'unit_price',
         'discount_amount',
@@ -25,6 +27,7 @@ class SaleLine extends Model
     {
         return [
             'quantity' => 'decimal:6',
+            'use_parent_breakdown' => 'boolean',
             'unit_price' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'tax_amount' => 'decimal:2',
@@ -45,5 +48,10 @@ class SaleLine extends Model
     public function productUnit(): BelongsTo
     {
         return $this->belongsTo(ProductUnit::class);
+    }
+
+    public function stockAllocations(): HasMany
+    {
+        return $this->hasMany(SaleLineStockAllocation::class);
     }
 }

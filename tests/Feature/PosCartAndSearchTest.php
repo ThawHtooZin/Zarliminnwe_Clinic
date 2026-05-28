@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\PatientVisitRecord;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductUnit;
+use App\Models\Sale;
 use App\Models\StockBalance;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -89,9 +91,10 @@ class PosCartAndSearchTest extends TestCase
             ->assertSee('No patient selected')
             ->assertSee('Complete Sale')
             ->assertSee('Hold Sale')
+            ->assertSee('name="patient_visit_record_id"', false)
+            ->assertSee(route('sales.patient-visits.today-recent'))
             ->assertDontSee('Diagnosis')
-            ->assertDontSee('Prescription')
-            ->assertDontSee('Appointments');
+            ->assertDontSee('Prescription');
     }
 
     public function test_product_search_returns_sale_units_prices_and_formatted_stock(): void
@@ -107,6 +110,10 @@ class PosCartAndSearchTest extends TestCase
             ->assertJsonPath('data.0.formatted_stock', '3 box')
             ->assertJsonPath('data.0.units.0.id', $this->box->id)
             ->assertJsonPath('data.0.units.0.sale_price', 25000)
+            ->assertJsonPath('data.0.units.0.is_available', true)
+            ->assertJsonPath('data.0.units.0.max_qty', 3)
+            ->assertJsonPath('data.0.units.1.is_available', true)
+            ->assertJsonPath('data.0.units.1.max_qty', 30)
             ->assertJsonPath('data.0.units.1.id', $this->strip->id)
             ->assertJsonPath('data.0.units.1.sale_price', 2800);
     }
@@ -117,6 +124,42 @@ class PosCartAndSearchTest extends TestCase
             ->getJson(route('sales.products.search', ['search' => 'STRIP-PARA-500']))
             ->assertOk()
             ->assertJsonPath('data.0.id', $this->product->id);
+    }
+
+    public function test_today_recent_queue_excludes_visits_with_completed_sale(): void
+    {
+        $openVisit = PatientVisitRecord::factory()->create([
+            'visited_at' => now(),
+            'created_by' => $this->cashier->id,
+        ]);
+        $checkedOutVisit = PatientVisitRecord::factory()->create([
+            'visited_at' => now(),
+            'created_by' => $this->cashier->id,
+        ]);
+
+        Sale::create([
+            'sale_number' => 'S-POS-QUEUE-001',
+            'patient_visit_record_id' => $checkedOutVisit->id,
+            'status' => Sale::STATUS_COMPLETED,
+            'subtotal' => 1000,
+            'discount_total' => 0,
+            'tax_total' => 0,
+            'grand_total' => 1000,
+            'amount_paid' => 1000,
+            'change_amount' => 0,
+            'payment_method' => Sale::PAYMENT_CASH,
+            'sold_by' => $this->cashier->id,
+            'sold_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->cashier)
+            ->getJson(route('sales.patient-visits.today-recent'))
+            ->assertOk();
+
+        $ids = collect($response->json('data'))->pluck('id');
+
+        $this->assertTrue($ids->contains($openVisit->id));
+        $this->assertFalse($ids->contains($checkedOutVisit->id));
     }
 
     public function test_stock_manager_cannot_open_pos(): void

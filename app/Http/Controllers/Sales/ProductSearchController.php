@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Sales;
 
+use App\Domain\Sales\Services\PosStockAvailabilityService;
 use App\Domain\Units\Services\UnitRelationshipService;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
@@ -10,7 +11,10 @@ use Illuminate\Http\Request;
 
 class ProductSearchController extends Controller
 {
-    public function __construct(private readonly UnitRelationshipService $unitRelationshipService) {}
+    public function __construct(
+        private readonly UnitRelationshipService $unitRelationshipService,
+        private readonly PosStockAvailabilityService $posStockAvailabilityService
+    ) {}
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -45,12 +49,18 @@ class ProductSearchController extends Controller
                 'image_url' => $product->image_path ? asset('storage/'.$product->image_path) : null,
                 'initial' => strtoupper(substr($product->name, 0, 1)),
                 'formatted_stock' => $this->unitRelationshipService->formatStock($product, $product->stockBalances),
-                'units' => $product->saleUnits->map(fn ($unit): array => [
-                    'id' => $unit->id,
-                    'name' => $unit->name,
-                    'abbreviation' => $unit->abbreviation,
-                    'sale_price' => (float) $unit->sale_price,
-                ])->values(),
+                'units' => $product->saleUnits->map(function ($unit) use ($product): array {
+                    $availability = $this->posStockAvailabilityService->availabilityForUnit($product->stockBalances, $unit);
+
+                    return [
+                        'id' => $unit->id,
+                        'name' => $unit->name,
+                        'abbreviation' => $unit->abbreviation,
+                        'sale_price' => (float) $unit->sale_price,
+                        'is_available' => $availability['is_available'],
+                        'max_qty' => $availability['max_qty'],
+                    ];
+                })->values(),
             ]);
 
         return response()->json([
