@@ -60,5 +60,6 @@
             @yield('content')
         </div>
     </main>
+    <x-ai-helper />
 </body>
 </html>

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\AiHelperController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Catalog\ProductCategoryController;
 use App\Http\Controllers\Catalog\ProductController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Finance\ExpenseCategoryController;
 use App\Http\Controllers\Finance\ExpenseEntryController;
 use App\Http\Controllers\Finance\IncomeCategoryController;
 use App\Http\Controllers\Finance\IncomeEntryController;
+use App\Http\Controllers\HelpController;
 use App\Http\Controllers\Inventory\ExpiryAlertController;
 use App\Http\Controllers\Inventory\LowStockAlertController;
 use App\Http\Controllers\Inventory\OpeningStockController;
@@ -39,8 +41,13 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 });
 
+Route::middleware('auth')->group(function () {
+    Route::post('/ai-helper/chat', [AiHelperController::class, 'chat'])->name('ai-helper.chat');
+});
+
 Route::middleware(['auth', 'permission.route'])->group(function () {
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+    Route::get('/help', [HelpController::class, 'index'])->name('help.index');
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 

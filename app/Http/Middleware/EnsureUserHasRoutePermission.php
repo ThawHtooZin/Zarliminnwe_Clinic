@@ -15,6 +15,7 @@ class EnsureUserHasRoutePermission
     private array $exemptRoutes = [
         'login',
         'login.store',
+        'help.index',
     ];
 
     public function __construct(private readonly PermissionResolver $permissionResolver) {}

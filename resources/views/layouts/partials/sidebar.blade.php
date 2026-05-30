@@ -127,6 +127,19 @@
                 </div>
             @endforeach
         </div>
+        @php($helpActive = request()->routeIs('help.index'))
+        <div class="mt-3 border-t border-[#bec8ca] pt-3">
+            <a
+                href="{{ route('help.index') }}"
+                x-on:click="sidebarOpen = false"
+                class="flex items-center gap-3 rounded px-3 py-2.5 text-sm transition {{ $helpActive ? 'bg-[#00535b08] text-[#00535b]' : 'text-[#3e494a] hover:bg-white hover:text-[#00535b]' }}"
+            >
+                <span class="flex h-5 w-5 items-center justify-center rounded text-[11px] font-semibold {{ $helpActive ? 'bg-[#00535b] text-white' : 'bg-[#e1e3e4] text-[#3e494a]' }}">
+                    ?
+                </span>
+                <span>Help Center</span>
+            </a>
+        </div>
     </nav>
 
     <div class="mt-4 shrink-0 border-t border-[#bec8ca] pt-4">
