@@ -27,7 +27,7 @@ class AiHelperController extends Controller
         ]));
 
         $apiKey = (string) config('services.ai.key');
-        $model = (string) config('services.ai.model', 'gemini-2.0-flash');
+        $model = (string) config('services.ai.model', 'gemini-2.5-flash');
         $provider = (string) config('services.ai.provider', 'gemini');
 
         if ($apiKey === '') {
@@ -41,8 +41,11 @@ class AiHelperController extends Controller
             : $this->callOpenAi($apiKey, $model, $systemPrompt, $validated['message']);
 
         if (! $apiResponse->successful()) {
+            $errorMessage = data_get($apiResponse->json(), 'error.message')
+                ?? 'Unable to get AI response right now.';
+
             return response()->json([
-                'message' => 'Unable to get AI response right now.',
+                'message' => $errorMessage,
             ], 502);
         }
 
