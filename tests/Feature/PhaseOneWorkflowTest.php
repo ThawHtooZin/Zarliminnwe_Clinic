@@ -162,6 +162,7 @@ class PhaseOneWorkflowTest extends TestCase
 
         $this->actingAs($cashier)
             ->get(route('opening-stock.create'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 }

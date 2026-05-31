@@ -146,7 +146,8 @@ class FinanceReportsTest extends TestCase
 
         $this->actingAs($this->cashier)
             ->get(route('reports.finance-summary'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     public function test_income_report_includes_completed_pharmacy_sales(): void
@@ -266,11 +267,13 @@ class FinanceReportsTest extends TestCase
 
         $this->actingAs($stockManager)
             ->get(route('reports.finance-summary'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
 
         $this->actingAs($stockManager)
             ->get(route('reports.finance-income'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     private function seedFinanceDataForSummary(): void

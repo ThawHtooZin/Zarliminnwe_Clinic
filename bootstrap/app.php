@@ -2,12 +2,12 @@
 
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\EnsureUserHasRoutePermission;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
-use Throwable;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -22,14 +22,26 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->render(function (Throwable $exception, Request $request) {
+        $exceptions->render(function (AuthenticationException $exception, Request $request) {
             if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage() ?: 'Unauthenticated.',
+                ], 401);
+            }
+
+            return redirect()->guest(route('login'));
+        });
+
+        $exceptions->render(function (Throwable $exception, Request $request) {
+            if ($request->expectsJson() || $exception instanceof AuthenticationException) {
                 return null;
             }
 
-            $statusCode = $exception instanceof HttpExceptionInterface
-                ? $exception->getStatusCode()
-                : 500;
+            if (! $exception instanceof HttpExceptionInterface) {
+                return null;
+            }
+
+            $statusCode = $exception->getStatusCode();
 
             if ($statusCode < 500) {
                 return null;

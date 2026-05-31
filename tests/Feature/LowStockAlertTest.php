@@ -166,7 +166,8 @@ class LowStockAlertTest extends TestCase
 
         $this->actingAs($cashier)
             ->get(route('stock-control.low-stock'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     /**

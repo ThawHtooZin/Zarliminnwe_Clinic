@@ -233,7 +233,8 @@ class StockCountWorkflowTest extends TestCase
 
         $this->actingAs($cashier)
             ->get(route('stock-counts.index'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     public function test_pharmacist_can_submit_but_cannot_post_stock_count(): void
@@ -247,7 +248,8 @@ class StockCountWorkflowTest extends TestCase
 
         $this->actingAs($pharmacist)
             ->post(route('stock-counts.post', $stockCount))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     private function createDraftCountWithBalance(float $quantity): StockCount

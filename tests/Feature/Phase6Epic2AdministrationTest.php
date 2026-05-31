@@ -35,7 +35,8 @@ class Phase6Epic2AdministrationTest extends TestCase
 
         $this->actingAs($cashier)
             ->get(route('admin.users.index'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     public function test_admin_can_create_update_and_deactivate_user(): void
@@ -136,7 +137,8 @@ class Phase6Epic2AdministrationTest extends TestCase
 
         $this->actingAs($stockManager)
             ->get(route('sales.pos'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     public function test_route_requires_related_screen_permission(): void
@@ -156,7 +158,8 @@ class Phase6Epic2AdministrationTest extends TestCase
 
         $this->actingAs($cashier)
             ->get(route('sales.pos'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     public function test_role_update_auto_removes_route_when_related_screen_not_selected(): void

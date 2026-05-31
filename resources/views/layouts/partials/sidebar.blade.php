@@ -19,7 +19,7 @@
 
 <div
     class="fixed inset-0 z-40 bg-black/30"
-    x-show="window.innerWidth < 1300 && sidebarOpen"
+    x-show="!isDesktopSidebar && sidebarOpen"
     x-transition.opacity
     x-on:click="sidebarOpen = false"
     style="display: none;"
@@ -27,9 +27,9 @@
 
 <aside
     class="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-[#bec8ca] bg-[#f8f9fa] px-4 py-6 transition-transform duration-200"
-    :class="((window.innerWidth >= 1300) ? sidebarDesktopOpen : sidebarOpen) ? 'translate-x-0' : '-translate-x-full'"
+    :class="(isDesktopSidebar ? sidebarDesktopOpen : sidebarOpen) ? 'translate-x-0' : '-translate-x-full'"
 >
-    <div class="mb-2 flex items-center justify-end" x-show="window.innerWidth < 1300">
+    <div class="mb-2 flex items-center justify-end" x-show="!isDesktopSidebar">
         <button
             type="button"
             class="inline-flex h-8 w-8 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b]"

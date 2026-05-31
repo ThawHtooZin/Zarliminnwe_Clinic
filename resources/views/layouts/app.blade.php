@@ -9,18 +9,34 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-[#f8f9fa] font-sans text-[#191c1d] antialiased" x-data="{ sidebarOpen: false, sidebarDesktopOpen: true }">
+<body
+    class="min-h-screen bg-[#f8f9fa] font-sans text-[#191c1d] antialiased"
+    x-data="{
+        sidebarOpen: false,
+        sidebarDesktopOpen: true,
+        sidebarBreakpoint: 1400,
+        windowWidth: window.innerWidth,
+        get isDesktopSidebar() {
+            return this.windowWidth >= this.sidebarBreakpoint;
+        },
+        init() {
+            window.addEventListener('resize', () => {
+                this.windowWidth = window.innerWidth;
+            });
+        },
+    }"
+>
     @include('layouts.partials.sidebar')
 
     <header
         class="fixed left-0 right-0 top-0 z-20 flex h-14 items-center justify-between border-b border-[#bec8ca] bg-[#f8f9fa] px-4 sm:px-6"
-        :class="(window.innerWidth >= 1400 && sidebarDesktopOpen) ? 'left-[260px]' : 'left-0'"
+        :class="(isDesktopSidebar && sidebarDesktopOpen) ? 'left-[260px]' : 'left-0'"
     >
         <div class="flex h-full items-center gap-3 sm:gap-6">
             <button
                 type="button"
                 class="inline-flex h-9 w-9 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b]"
-                x-show="window.innerWidth < 1400"
+                x-show="!isDesktopSidebar"
                 x-on:click="sidebarOpen = true"
                 aria-label="Open navigation"
             >
@@ -31,7 +47,7 @@
             <button
                 type="button"
                 class="inline-flex h-9 w-9 items-center justify-center rounded border border-[#bec8ca] bg-white text-[#00535b]"
-                x-show="window.innerWidth >= 1400"
+                x-show="isDesktopSidebar"
                 x-on:click="sidebarDesktopOpen = !sidebarDesktopOpen"
                 :aria-label="sidebarDesktopOpen ? 'Collapse sidebar' : 'Expand sidebar'"
                 :class="sidebarDesktopOpen ? 'ring-2 ring-[#00535b]/15' : ''"
@@ -55,8 +71,18 @@
         </div>
     </header>
 
-    <main class="min-h-screen pt-14" :class="(window.innerWidth >= 1400 && sidebarDesktopOpen) ? 'pl-[260px]' : 'pl-0'">
+    <main class="min-h-screen pt-14" :class="(isDesktopSidebar && sidebarDesktopOpen) ? 'pl-[260px]' : 'pl-0'">
         <div class="p-4 sm:p-6 lg:p-8">
+            @if (session('error'))
+                <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+                    {{ session('error') }}
+                </div>
+            @endif
+            @if (session('status'))
+                <div class="mb-4 rounded-xl border border-[#bec8ca] bg-white px-4 py-3 text-sm text-[#00535b]">
+                    {{ session('status') }}
+                </div>
+            @endif
             @yield('content')
         </div>
     </main>

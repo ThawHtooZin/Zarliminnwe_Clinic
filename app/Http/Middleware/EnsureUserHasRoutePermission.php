@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Domain\Administration\Services\PermissionResolver;
+use App\Http\Support\UnauthorizedResponse;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,7 +27,7 @@ class EnsureUserHasRoutePermission
         $routeName = $request->route()?->getName();
 
         if ($user === null) {
-            abort(403);
+            return UnauthorizedResponse::deny($request);
         }
 
         if (in_array($routeName, $this->exemptRoutes, true)) {
@@ -34,7 +35,7 @@ class EnsureUserHasRoutePermission
         }
 
         if (! $this->permissionResolver->canAccessRoute($user, $routeName)) {
-            abort(403);
+            return UnauthorizedResponse::deny($request);
         }
 
         return $next($request);

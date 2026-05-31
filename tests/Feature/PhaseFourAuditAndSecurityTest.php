@@ -53,7 +53,8 @@ class PhaseFourAuditAndSecurityTest extends TestCase
         foreach ($this->phaseFourRoutes() as $route) {
             $this->actingAs($this->stockManager)
                 ->get($route)
-                ->assertForbidden();
+                ->assertRedirect(route('dashboard'))
+                ->assertSessionHas('error', 'You do not have access to this page.');
         }
     }
 
@@ -98,15 +99,18 @@ class PhaseFourAuditAndSecurityTest extends TestCase
     {
         $this->actingAs($this->cashier)
             ->get(route('finance.income-categories.index'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+                ->assertSessionHas('error', 'You do not have access to this page.');
 
         $this->actingAs($this->cashier)
             ->get(route('finance.expense-categories.index'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+                ->assertSessionHas('error', 'You do not have access to this page.');
 
         $this->actingAs($this->cashier)
             ->get(route('reports.finance-summary'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+                ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     public function test_pharmacist_can_access_finance_summary_and_category_management(): void
