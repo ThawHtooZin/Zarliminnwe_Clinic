@@ -231,7 +231,8 @@ class ExpenseTrackingTest extends TestCase
 
         $this->actingAs($stockManager)
             ->get(route('finance.expenses.index'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     /**

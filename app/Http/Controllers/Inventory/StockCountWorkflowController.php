@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Domain\Inventory\Services\StockCountService;
 use App\Http\Controllers\Controller;
+use App\Http\Support\UnauthorizedResponse;
 use App\Models\StockCount;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +29,7 @@ class StockCountWorkflowController extends Controller
     public function post(Request $request, StockCount $stockCount): RedirectResponse
     {
         if (! $request->user()->hasRole(User::ROLE_ADMIN, User::ROLE_STOCK_MANAGER)) {
-            abort(403);
+            return UnauthorizedResponse::deny($request);
         }
 
         try {
@@ -43,7 +44,7 @@ class StockCountWorkflowController extends Controller
     public function cancel(Request $request, StockCount $stockCount): RedirectResponse
     {
         if (! $request->user()->hasRole(User::ROLE_ADMIN, User::ROLE_STOCK_MANAGER)) {
-            abort(403);
+            return UnauthorizedResponse::deny($request);
         }
 
         try {

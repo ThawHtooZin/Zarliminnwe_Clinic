@@ -63,7 +63,8 @@ class PhaseThreeFinalPushTest extends TestCase
 
         $this->actingAs($cashier)
             ->get(route('stock-control.expiry'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     public function test_expired_stock_adjustment_posts_out_ledger_and_reduces_balance(): void

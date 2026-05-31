@@ -112,7 +112,8 @@ class SalesAuditAndSecurityTest extends TestCase
             ->post(route('sales.void', $sale), [
                 'void_reason' => 'Cashier attempted void.',
             ])
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
 
         $this->assertSame(Sale::STATUS_COMPLETED, $sale->fresh()->status);
 

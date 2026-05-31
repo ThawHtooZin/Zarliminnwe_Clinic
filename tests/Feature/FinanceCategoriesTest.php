@@ -176,10 +176,12 @@ class FinanceCategoriesTest extends TestCase
 
         $this->actingAs($stockManager)
             ->get(route('finance.income-categories.index'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
 
         $this->actingAs($stockManager)
             ->get(route('finance.expense-categories.index'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 }

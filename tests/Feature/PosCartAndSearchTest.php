@@ -170,6 +170,7 @@ class PosCartAndSearchTest extends TestCase
 
         $this->actingAs($stockManager)
             ->get(route('sales.pos'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 }

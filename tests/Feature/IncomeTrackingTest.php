@@ -244,7 +244,8 @@ class IncomeTrackingTest extends TestCase
 
         $this->actingAs($stockManager)
             ->get(route('finance.income.index'))
-            ->assertForbidden();
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'You do not have access to this page.');
     }
 
     /**
