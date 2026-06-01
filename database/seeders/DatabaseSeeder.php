@@ -19,15 +19,6 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             RolePermissionSeeder::class,
             UserSeeder::class,
-            IncomeCategorySeeder::class,
-            ExpenseCategorySeeder::class,
-            ProductCategorySeeder::class,
-            ProductSeeder::class,
-            ProductUnitSeeder::class,
-            SupplierSeeder::class,
-            StockBatchSeeder::class,
-            StockBalanceSeeder::class,
-            StockLedgerSeeder::class,
         ]);
     }
 }
