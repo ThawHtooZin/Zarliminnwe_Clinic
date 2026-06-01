@@ -22,13 +22,28 @@ Links are filtered by **permissions** (screen access), not hard-coded role strin
 
 The green **Go to POS** button appears when the user has `screen.sales.pos` permission.
 
-## Fresh Database Seed
+## Database seeding
+
+See `docs/flows/database-seeding-strategy-sequence.md` for the full flow and QA steps.
+
+**Local / dev (full sample data):**
 
 ```bash
 php artisan migrate:fresh --seed
+# or after migrate:
+php artisan db:seed
 ```
 
-Seed order includes roles, permissions, role-permission map, users, and finance categories.
+Runs `DatabaseSeeder`: roles, permissions, users, finance categories, products, suppliers, and stock.
+
+**Production (auth only, no demo catalog/stock):**
+
+```bash
+php artisan migrate
+php artisan db:seed --class=DevelopmentDataSeeder
+```
+
+Do not use `migrate --seed` on production unless you intentionally want the full dev dataset.
 
 ## Administration (Epic 2)
 
@@ -106,7 +121,7 @@ Income entries and sales link via `patient_visit_record_id`.
 
 ## Final Verification Checklist
 
-- Run: `php artisan migrate:fresh --seed`
+- Run: `php artisan migrate:fresh --seed` (local) or `migrate` + `db:seed --class=DevelopmentDataSeeder` (production auth setup)
 - Run: `php artisan test`
 - Confirm `audit_logs` entries for recent patient and sale actions
 - Confirm POS selector shows today's recent visits and saves `patient_visit_record_id`

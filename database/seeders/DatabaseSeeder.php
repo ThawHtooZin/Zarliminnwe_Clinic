@@ -10,7 +10,7 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
+     * Full dataset for local/dev. For production auth-only setup use DevelopmentDataSeeder.
      */
     public function run(): void
     {
@@ -19,6 +19,15 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             RolePermissionSeeder::class,
             UserSeeder::class,
+            IncomeCategorySeeder::class,
+            ExpenseCategorySeeder::class,
+            ProductCategorySeeder::class,
+            ProductSeeder::class,
+            ProductUnitSeeder::class,
+            SupplierSeeder::class,
+            StockBatchSeeder::class,
+            StockBalanceSeeder::class,
+            StockLedgerSeeder::class,
         ]);
     }
 }

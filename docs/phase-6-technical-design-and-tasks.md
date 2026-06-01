@@ -25,7 +25,7 @@ This document is for technical design and Epic breakdown only. No application co
   - Roles are a string column on `users` with `EnsureUserHasRole` middleware.
   - `patient_visits` stores name, age, and `visited_at` only.
   - `sales.patient_visit_id` exists but POS patient selector is not wired.
-  - `IncomeCategorySeeder` and `ExpenseCategorySeeder` exist but are not called from `DatabaseSeeder`.
+  - `DatabaseSeeder` runs the full local/dev dataset; `DevelopmentDataSeeder` runs auth-only for production setup (see `docs/flows/database-seeding-strategy-sequence.md`).
   - POS cart merges duplicate product+unit lines; checkout uses integer-only auto-unpack via `UnitRelationshipService::calculateIntegerSaleFulfillment`.
   - Sidebar is a flat list in `resources/views/layouts/app.blade.php`.
 
@@ -179,8 +179,10 @@ app/Models/SaleLineStockAllocation.php
 config/navigation.php
 config/permissions.php
 database/migrations/* (one table per file)
-database/seeders/IncomeCategorySeeder.php (wire-up)
-database/seeders/ExpenseCategorySeeder.php (wire-up)
+database/seeders/DatabaseSeeder.php (full dev dataset via call list)
+database/seeders/DevelopmentDataSeeder.php (production auth-only entry)
+database/seeders/IncomeCategorySeeder.php
+database/seeders/ExpenseCategorySeeder.php
 database/seeders/RoleSeeder.php
 database/seeders/PermissionSeeder.php
 resources/views/admin/
@@ -487,15 +489,21 @@ For each legacy `patient_visits` row:
 
 ## 8. Seeders (Phase 6)
 
-| Seeder | Action |
-|--------|--------|
-| `IncomeCategorySeeder` | Add to `DatabaseSeeder::call()` |
-| `ExpenseCategorySeeder` | Add to `DatabaseSeeder::call()` |
-| `RoleSeeder` | Seed default roles matching current slugs |
-| `PermissionSeeder` | Seed screen + route permissions for all registered routes/screens |
-| `RolePermissionSeeder` | Map default access equivalent to current middleware groups |
+| Entry seeder | When to use | Calls |
+|--------------|-------------|--------|
+| `DatabaseSeeder` | `php artisan db:seed`, `migrate:fresh --seed` | All dedicated seeders (auth, finance categories, catalog, stock) |
+| `DevelopmentDataSeeder` | Production first deploy: `db:seed --class=DevelopmentDataSeeder` | `RoleSeeder`, `PermissionSeeder`, `RolePermissionSeeder`, `UserSeeder` only |
 
-`DatabaseSeeder` only calls dedicated seeders; it does not inline category arrays.
+| Dedicated seeder | Role |
+|------------------|------|
+| `RoleSeeder` | Default role slugs |
+| `PermissionSeeder` | Screen + route permissions |
+| `RolePermissionSeeder` | Default grants per role |
+| `UserSeeder` | Default staff users for dev |
+| `IncomeCategorySeeder` | Default income categories (via `DatabaseSeeder` only) |
+| `ExpenseCategorySeeder` | Default expense categories (via `DatabaseSeeder` only) |
+
+Neither entry seeder inlines model data; both only `$this->call([...])`. Full flow: `docs/flows/database-seeding-strategy-sequence.md`.
 
 ---
 
@@ -550,9 +558,10 @@ Acceptance criteria:
 
 Acceptance criteria:
 
-- `DatabaseSeeder` calls `IncomeCategorySeeder` and `ExpenseCategorySeeder`.
-- Fresh migrate/seed creates usable income and expense categories.
-- Seeders remain dedicated files.
+- `DatabaseSeeder` calls `IncomeCategorySeeder` and `ExpenseCategorySeeder` (with full dev dataset).
+- `DevelopmentDataSeeder` exists for auth-only production setup and does not call finance/catalog/stock seeders.
+- Fresh `migrate:fresh --seed` creates usable income and expense categories.
+- Seeders remain dedicated files; flow documented in `docs/flows/database-seeding-strategy-sequence.md`.
 
 #### Task 1.3 - Phase 6 usage notes stub
 

@@ -13,6 +13,7 @@ sequenceDiagram
     participant NavigationMenu
     participant Config
     participant DatabaseSeeder
+    participant DevelopmentDataSeeder
 
     User->>Layout: Open authenticated page
     Layout->>NavigationMenu: groupsFor(auth user)
@@ -20,10 +21,14 @@ sequenceDiagram
     NavigationMenu-->>Layout: Filter items by user.role
     Layout-->>User: Render grouped scrollable sidebar
 
-    Note over DatabaseSeeder: Fresh install / migrate:fresh --seed
-    DatabaseSeeder->>DatabaseSeeder: call IncomeCategorySeeder
-    DatabaseSeeder->>DatabaseSeeder: call ExpenseCategorySeeder
+    Note over DatabaseSeeder: Local: migrate:fresh --seed or db:seed
+    DatabaseSeeder->>DatabaseSeeder: call auth + finance + catalog + stock seeders
+
+    Note over DevelopmentDataSeeder: Production: db:seed --class=DevelopmentDataSeeder
+    DevelopmentDataSeeder->>DevelopmentDataSeeder: call Role, Permission, RolePermission, User only
 ```
+
+See also: `docs/flows/database-seeding-strategy-sequence.md`.
 
 ## Manual QA
 
@@ -40,8 +45,9 @@ sequenceDiagram
 6. Log in as **Stock Manager** (`stock_manager@zarliminnew.test` / `password`).
 7. Confirm **Go to POS**, **Patient Visits**, and **Finance Summary** are not shown.
 8. Confirm **Management** and **Stock Reports** links still appear.
-9. Run `php artisan migrate:fresh --seed`.
+9. Run `php artisan migrate:fresh --seed` (or `php artisan db:seed` on an empty DB).
 10. Open **Income Categories** and **Expense Categories** and confirm default categories exist without manual setup.
+11. For production-style auth-only setup, run `php artisan db:seed --class=DevelopmentDataSeeder` and confirm finance category screens start empty until categories are created manually.
 
 ## Database Checks
 
