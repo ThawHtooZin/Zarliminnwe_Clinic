@@ -35,8 +35,10 @@ sequenceDiagram
 1. Run migrations.
 2. Confirm `income_categories` and `expense_categories` tables exist.
 3. Confirm each table has its own dedicated migration file.
-4. Run `php artisan db:seed --class=IncomeCategorySeeder`.
-5. Run `php artisan db:seed --class=ExpenseCategorySeeder`.
+4. Seed categories using either:
+   - `php artisan db:seed` (full `DatabaseSeeder`, includes income and expense categories), or
+   - `php artisan db:seed --class=IncomeCategorySeeder` then `ExpenseCategorySeeder` for isolated QA.
+5. Skip step 4 category seeders when using `DevelopmentDataSeeder` (auth only; see `docs/flows/database-seeding-strategy-sequence.md`).
 6. Log in as Admin or Pharmacist.
 7. Open `/finance/income-categories`.
 8. Create an income category with type `service`.

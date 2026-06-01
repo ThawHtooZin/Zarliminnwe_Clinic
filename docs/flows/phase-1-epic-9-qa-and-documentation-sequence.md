@@ -25,7 +25,7 @@ sequenceDiagram
 
 ## Manual QA
 
-1. Run database seeders.
+1. Run `php artisan db:seed` (full `DatabaseSeeder`) for local QA.
 2. Confirm seeded admin/cashier users exist.
 3. Confirm sample categories, products, units, suppliers, and stock exist.
 4. Run tests.
@@ -34,6 +34,7 @@ sequenceDiagram
 
 ## Database Checks
 
-- Check dedicated seeders populate expected tables.
-- Check no model seed data is dumped directly into `DatabaseSeeder`.
+- Check dedicated seeders populate expected tables when running `php artisan db:seed`.
+- Check `DatabaseSeeder` and `DevelopmentDataSeeder` only use `$this->call([...])` (no inline model arrays).
+- Check production setup uses `DevelopmentDataSeeder` per `docs/flows/database-seeding-strategy-sequence.md`.
 - Check one-table-per-migration rule is respected.
