@@ -56,6 +56,15 @@ class UnifiedIncomeQueryService
      * @param  array<string, mixed>  $filters
      * @return Collection<int, UnifiedIncomeLine>
      */
+    public function collectionForFilters(array $filters): Collection
+    {
+        return $this->mergedLines($this->normalizeFilters($filters));
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return Collection<int, UnifiedIncomeLine>
+     */
     private function mergedLines(array $filters): Collection
     {
         return $this->incomeEntryLines($filters)

@@ -167,6 +167,25 @@ Adds **Delete** to configuration screens: Products, Categories, Suppliers, Incom
 
 **Permissions:** Admin + Pharmacist for catalog/finance categories; **Users** delete is Admin only.
 
+## List Excel Export (Epic 12)
+
+Adds **Export Excel** on these index pages:
+
+| Screen | What exports |
+|--------|----------------|
+| Products | Same columns as table (Product, SKU, Category, Units, Status) |
+| Product Categories | Name, Products, Status |
+| Suppliers | Name, Phone, Email, Status |
+| Income Categories | Name, Type, Status |
+| Expense Categories | Name, Status |
+| Income | Same unified table as index (filters apply) |
+| Expenses | Same table as index (filters apply) |
+
+- Exports **all matching rows**, not just the current page.
+- **Action** column is not included.
+- Income export includes pharmacy sales rows like the on-screen list.
+- This is not the same as **Backup & Restore** CSV exports.
+
 ## Epic 8 QA Closure
 
 - Audit logs verified for admin, patient, diagnosis, and sale workflows

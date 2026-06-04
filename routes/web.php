@@ -31,6 +31,7 @@ use App\Http\Controllers\Sales\SaleController;
 use App\Http\Controllers\Sales\SaleReceiptController;
 use App\Http\Controllers\Sales\SaleVoidController;
 use App\Http\Controllers\BackupRestore\BackupRestoreController;
+use App\Http\Controllers\ListExportController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -64,6 +65,10 @@ Route::middleware(['auth', 'permission.route'])->group(function () {
     Route::get('sales/patient-visits/today-recent', [PatientVisitController::class, 'todayRecent'])->name('sales.patient-visits.today-recent');
 
     Route::prefix('finance')->name('finance.')->group(function () {
+        Route::get('income/export.xlsx', [ListExportController::class, 'income'])->name('income.export');
+        Route::get('expenses/export.xlsx', [ListExportController::class, 'expenses'])->name('expenses.export');
+        Route::get('income-categories/export.xlsx', [ListExportController::class, 'incomeCategories'])->name('income-categories.export');
+        Route::get('expense-categories/export.xlsx', [ListExportController::class, 'expenseCategories'])->name('expense-categories.export');
         Route::resource('income', IncomeEntryController::class)
             ->except(['show', 'destroy'])
             ->parameters(['income' => 'incomeEntry']);
@@ -88,8 +93,11 @@ Route::middleware(['auth', 'permission.route'])->group(function () {
     Route::get('/reports/finance-expenses', [FinanceReportController::class, 'expenseReport'])->name('reports.finance-expenses');
     Route::get('/reports/finance-summary', [FinanceReportController::class, 'financeSummary'])->name('reports.finance-summary');
 
+    Route::get('product-categories/export.xlsx', [ListExportController::class, 'productCategories'])->name('product-categories.export');
     Route::resource('product-categories', ProductCategoryController::class)->except(['show']);
+    Route::get('products/export.xlsx', [ListExportController::class, 'products'])->name('products.export');
     Route::resource('products', ProductController::class);
+    Route::get('suppliers/export.xlsx', [ListExportController::class, 'suppliers'])->name('suppliers.export');
     Route::resource('suppliers', SupplierController::class)->except(['show']);
 
     Route::get('/opening-stock', [OpeningStockController::class, 'create'])->name('opening-stock.create');

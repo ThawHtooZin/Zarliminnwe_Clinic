@@ -9,7 +9,10 @@
             <h1 class="text-3xl font-semibold text-[#191c1d]">Income Categories</h1>
             <p class="mt-1 text-sm text-[#3e494a]">Service and general income categories for clinic fees.</p>
         </div>
-        <a href="{{ route('finance.income-categories.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">New Income Category</a>
+        <div class="flex gap-2">
+            <x-export-excel-link :href="route('finance.income-categories.export')" />
+            <a href="{{ route('finance.income-categories.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">New Income Category</a>
+        </div>
     </div>
 
     @if (session('status'))

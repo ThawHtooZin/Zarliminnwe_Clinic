@@ -8,6 +8,8 @@ Completed: Phase 6 POS Visit Queue Filtering
 
 **Completed: Phase 6, Epic 11 — Configuration Master Data Delete (Safe CRUD)**
 
+**Completed: Phase 6, Epic 12 — List Screen Excel Export**
+
 ## Clinic Management System - Phase 6
 
 ### Purpose
@@ -56,6 +58,7 @@ This document is for technical design and Epic breakdown only. No application co
 - Audit logs for new admin and patient flows.
 - **Backup & Restore** screen under **Management**: per-dataset SQL and CSV export, CSV/XLSX import, dataset SQL restore, operational module CSV exports, and full-database SQL backup/restore (admin-only).
 - **Configuration delete (CRUD completion):** Admin/pharmacist-authorized hard delete for products, categories, suppliers, users, income categories, and expense categories — with dependency checks, ordered application cascade where safe, and clear block messages when history exists.
+- **List screen Excel export:** One-click `.xlsx` download on index pages for products, categories, suppliers, income/expense categories, income entries, and expense entries — columns match the on-screen table (excluding Action), all matching rows (no pagination), optional filters respected.
 
 ### 1.2 Explicitly Excluded
 
@@ -76,6 +79,9 @@ This document is for technical design and Epic breakdown only. No application co
 - Blind database `ON DELETE CASCADE` on pharmacy sales, stock ledger, or finance entry tables (audit integrity).
 - Delete for patients, sales, purchase receipts, stock counts, or other operational modules (configuration scope only in Epic 11).
 - Bulk delete / multi-select purge UI.
+- Excel export on reports, sales history, patients, stock ledger, or backup-restore datasets (Epic 12 is index-list screens only).
+- PDF/print layouts, charts, or user-defined column pickers.
+- Replacing Epic 10 backup CSV/SQL export formats (backup remains CSV export / XLSX import only).
 
 ### 1.3 Boundary Rules
 
@@ -94,6 +100,9 @@ This document is for technical design and Epic breakdown only. No application co
 - Configuration deletes run in a DB transaction via domain services; never rely on changing historical `restrictOnDelete` FKs to cascade sales or stock.
 - When dependencies exist, return a human-readable block reason (counts + what to do: deactivate, or remove dependent setup data first).
 - All deletes are audited (`*.deleted` actions).
+- List Excel exports use the **same query filters** as the index page but **never paginate**; export all rows that match current filters (or all rows when filters empty).
+- Export column order and header labels match the index `<thead>` exactly, minus the **Action** column.
+- Composite UI cells (e.g. product name + generic name) flatten to plain text in one or more adjacent columns per §2.7; no images or HTML links in cells.
 
 ---
 
@@ -386,6 +395,67 @@ Permissions (new routes): `product-categories.destroy`, `products.destroy`, `sup
 #### Documentation (after implementation)
 
 - `docs/flows/phase-6-epic-11-configuration-delete-sequence.md`
+
+### 2.7 List Screen Excel Export (Epic 12)
+
+#### Purpose
+
+Staff need to share or archive what they see on list pages. Epic 12 adds **Export Excel** on each configured index screen. The downloaded `.xlsx` mirrors the table layout (headers and column order). **All rows** that match the current filters are included — not only the current page.
+
+This is separate from **Epic 10 Backup & Restore** (dataset CSV/SQL for migration). Epic 12 is **UI-aligned list export** only.
+
+#### Scope (seven list screens)
+
+| Export key | Index screen | Route (proposed) | Filter params (same as index) |
+|------------|--------------|------------------|-------------------------------|
+| `products` | Products | `GET /products/export.xlsx` → `products.export` | `search` |
+| `product-categories` | Product Categories | `GET /product-categories/export.xlsx` | — |
+| `suppliers` | Suppliers | `GET /suppliers/export.xlsx` | — |
+| `finance.income-categories` | Income Categories | `GET /finance/income-categories/export.xlsx` | — |
+| `finance.expense-categories` | Expense Categories | `GET /finance/expense-categories/export.xlsx` | — |
+| `finance.income` | Income | `GET /finance/income/export.xlsx` | `received_from`, `received_to`, `income_category_id`, `payment_method`, `patient_visit_id`, `received_by` |
+| `finance.expenses` | Expenses | `GET /finance/expenses/export.xlsx` | `expense_from`, `expense_to`, `expense_category_id`, `payment_method`, `payee`, `created_by` |
+
+#### Column contracts (match index table; no Action column)
+
+Headers in row 1 of the worksheet must match the index `<th>` labels below, left to right.
+
+| Export key | Excel columns (in order) | Cell formatting notes |
+|------------|--------------------------|------------------------|
+| `products` | Product, SKU, Category, Units, Status | **Product** cell = product name; second line or adjacent subfield for generic name (`No generic name` when empty). **Units** = unit abbreviations joined with `, ` (same as table). **Status** = `Active` / `Inactive`. |
+| `product-categories` | Name, Products, Status | **Products** = `products_count` from index. **Status** = `Active` / `Inactive`. |
+| `suppliers` | Name, Phone, Email, Status | Empty phone/email → `—` (same as table). |
+| `finance.income-categories` | Name, Type, Status | **Type** capitalized. **Status** = `Active` / `Inactive`. |
+| `finance.expense-categories` | Name, Status | **Status** = `Active` / `Inactive`. |
+| `finance.income` | Date, Source, Category, Patient Visit, Amount, Payment, Recorded By | Uses `UnifiedIncomeQueryService` (service + pharmacy sales). **Date** = `M d, Y H:i`. **Source** = `Pharmacy Sale` or `Service Income`. **Category** = category label; include description/sale number on second line when shown in table. **Patient Visit** = `PAT-xxx — Name` + visit datetime when linked, else `—`. **Amount** = 2 decimal places. Voided sales excluded. |
+| `finance.expenses` | Date, Category, Amount, Payee, Payment, Created By | **Date** = `M d, Y` (date only, same as table). |
+
+#### Technical approach
+
+- Reuse **`phpoffice/phpspreadsheet`** (already required for Epic 10 XLSX import).
+- **`config/list_exports.php`** — registry: export key → column definitions, query resolver class/method, filename prefix, permission route name.
+- **`App\Domain\Export\Services\ListExcelExportService`** — builds spreadsheet from column contract + row collection; streams download.
+- **Query resolvers** — thin classes or controller-private methods that duplicate index query logic **without** `paginate()`:
+  - Products: same search scope as `ProductController@index`.
+  - Categories / suppliers / finance categories: `::query()->...->get()`.
+  - Income: `UnifiedIncomeQueryService::collectionForFilters($filters)` (new method; no pagination).
+  - Expenses: same filters as `ExpenseEntryController@index`, `->get()`.
+- **Permissions:** each `*.export` route granted to the same roles as the matching `*.index` route (Admin, Pharmacist, Cashier as applicable per module).
+- **Audit (optional):** `list_export.generated` with export key and row count.
+
+#### UX (keep simple)
+
+- One **Export Excel** button on each index page header row (secondary style, next to **New …**).
+- Income/Expenses: button also respects active filters (export URL includes current query string).
+- No column picker, no export progress modal for MVP (acceptable for clinic-scale row counts).
+
+#### Tests (planned)
+
+- `tests/Feature/ListExcelExportTest.php` — 403 without permission; products export returns xlsx content-type; filtered income export row count; headers present in sheet (parse first row via PhpSpreadsheet in test).
+
+#### Documentation (after implementation)
+
+- `docs/flows/phase-6-epic-12-list-excel-export-sequence.md`
 
 ---
 
@@ -1256,6 +1326,47 @@ Acceptance criteria:
 
 ---
 
+### Epic 12: List Screen Excel Export
+
+#### Task 12.1 - Export registry and `ListExcelExportService`
+
+Acceptance criteria:
+
+- `config/list_exports.php` defines all seven export keys and column contracts per §2.7.
+- Service generates `.xlsx` with header row + data rows; streams response with correct MIME type and filename (`{module}-{Y-m-d-His}.xlsx`).
+
+#### Task 12.2 - Query resolvers (no pagination)
+
+Acceptance criteria:
+
+- Each export uses the same filters as its index; returns full collection (no `paginate()`).
+- Income export uses unified income query (includes pharmacy sales, excludes voided).
+- Product export respects `search` query param.
+
+#### Task 12.3 - Routes, permissions, and export actions
+
+Acceptance criteria:
+
+- Seven `GET …/export.xlsx` routes registered.
+- `PermissionSeeder` + `RolePermissionSeeder` grant export routes mirroring index access.
+- Unauthorized users receive redirect/403 consistent with app policy.
+
+#### Task 12.4 - Index UI buttons
+
+Acceptance criteria:
+
+- **Export Excel** on all seven index views.
+- Finance income/expenses pass current filter query string to export link.
+
+#### Task 12.5 - Tests and flow documentation
+
+Acceptance criteria:
+
+- `ListExcelExportTest` covers permission, content-type, and sample row/header checks.
+- `docs/flows/phase-6-epic-12-list-excel-export-sequence.md` with manual QA per screen.
+
+---
+
 ### Epic 8: Audit, Security, QA, And Documentation
 
 #### Task 8.1 - Audit logs for admin and patient flows
@@ -1295,7 +1406,8 @@ Acceptance criteria:
 9. Epic 9 — Finance & POS UI unification (depends on 3, 4, 6).
 10. Epic 10 — Backup, restore, and data exchange (after 2; independent of patient/POS epics but should ship after core modules stable).
 11. Epic 11 — Configuration delete (after Epic 2 permissions; independent of Epic 10).
-8. Epic 8 — Audit, tests, flow docs (extend with Epic 10–11 tests/docs).
+12. Epic 12 — List Excel export (after Epic 9 unified income; reuses PhpSpreadsheet).
+8. Epic 8 — Audit, tests, flow docs (extend with Epic 10–12 tests/docs).
 
 ---
 
@@ -1325,7 +1437,8 @@ Phase 6 is complete when:
 - [x] Visit detail and Finance Income screens show unified service income + pharmacy sales (read-time merge; no `income_entries` duplication).
 - [x] Epic 10: Backup & Restore screen live; CSV export and CSV/XLSX import per dataset; SQL export/restore per dataset; full-database SQL backup/restore; audit coverage.
 - [x] Epic 11: Configuration modules support safe delete with dependency checks; cascade only where §2.6 allows; UI + tests + flow doc.
+- [x] Epic 12: Seven index screens export `.xlsx` matching table columns; all filtered rows; no pagination; tests + flow doc.
 
 ---
 
-**Document status:** Epic 11 implemented. Flow doc: `docs/flows/phase-6-epic-11-configuration-delete-sequence.md`.
+**Document status:** Epics 10–12 implemented.

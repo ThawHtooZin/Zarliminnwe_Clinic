@@ -105,6 +105,7 @@
 - Configure pharmacy name, currency, receipt footer, and basic settings.
 - **Backup & Restore (Phase 6):** Admin-only export/import of named datasets (CSV export; CSV/XLSX import; per-dataset SQL export/restore) and full-database SQL backup/restore. See Phase 6 PRD bullets and `docs/phase-6-technical-design-and-tasks.md` §2.5.
 - **Configuration delete (Phase 6, Epic 11):** Hard delete for products, product categories, suppliers, income categories, expense categories, and users — with dependency checks; no deletion of sales/stock history via cascade.
+- **List Excel export (Phase 6, Epic 12):** Index-page `.xlsx` download mirroring table columns for products, categories, suppliers, finance categories, income, and expenses (all filtered rows, no pagination).
 
 #### Project Exclusions
 
@@ -431,9 +432,18 @@
 - User delete shall be admin-only; users shall not delete themselves or the last admin account.
 - Deactivate (`is_active`) remains the preferred way to hide records from daily use; delete is for removing unused master data.
 
+##### List Screen Excel Export (Epic 12)
+
+- The system shall provide **Export Excel** on index list pages for: products, product categories, suppliers, income categories, expense categories, income entries, and expense entries.
+- Exported `.xlsx` files shall use the **same column headers and order** as the on-screen table, excluding the Action column.
+- Export shall include **all rows** matching the current index filters, not only the current pagination page.
+- Income export shall use the same unified list as the Income index (service income + completed pharmacy sales; voided sales excluded).
+- Expense and income exports shall honor the same date/category/payment filters as the index form.
+- Epic 10 backup dataset exports remain **CSV only**; Epic 12 list exports are a separate feature.
+
 ## Coming In Later Phase 6 Epics
 
-- *(None — Epic 11 Configuration Delete is implemented.)*
+- **Epic 12 — List Screen Excel Export** — implemented; see `docs/flows/phase-6-epic-12-list-excel-export-sequence.md`.
 
 ### Success Metrics
 

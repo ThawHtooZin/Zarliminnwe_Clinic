@@ -9,7 +9,10 @@
             <h1 class="text-3xl font-semibold text-[#191c1d]">Expense Entries</h1>
             <p class="mt-1 text-sm text-[#3e494a]">Clinic and pharmacy operating expenses. These do not affect inventory or stock.</p>
         </div>
-        <a href="{{ route('finance.expenses.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">Record Expense</a>
+        <div class="flex gap-2">
+            <x-export-excel-link :href="route('finance.expenses.export', request()->query())" />
+            <a href="{{ route('finance.expenses.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">Record Expense</a>
+        </div>
     </div>
 
     @if (session('status'))
