@@ -69,8 +69,14 @@
         </div>
     </form>
 
+    @if ($user->exists && $user->id !== auth()->id())
+        <div class="max-w-2xl mt-6">
+            <x-delete-form :action="route('admin.users.destroy', $user)" :confirm="$user->name" />
+        </div>
+    @endif
+
     @if ($user->exists)
-        <div class="max-w-2xl rounded-lg border border-[#bec8ca] bg-white p-6">
+        <div class="max-w-2xl rounded-lg border border-[#bec8ca] bg-white p-6 mt-6">
             <h2 class="text-lg font-semibold text-[#191c1d]">Reset Password</h2>
             <p class="mt-1 text-sm text-[#3e494a]">Set a new password immediately for this user.</p>
 

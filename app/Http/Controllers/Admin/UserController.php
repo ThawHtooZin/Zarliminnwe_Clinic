@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Administration\Services\AdminUserService;
+use App\Domain\Administration\Services\UserDeletionService;
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Shared\Exceptions\DeletionBlockException;
 use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\User;
@@ -16,6 +18,7 @@ class UserController extends Controller
     public function __construct(
         private readonly AdminUserService $adminUserService,
         private readonly AuditLogger $auditLogger,
+        private readonly UserDeletionService $deletionService,
     ) {}
 
     public function index(): View
@@ -60,6 +63,19 @@ class UserController extends Controller
         $this->adminUserService->updateUser($user, $data);
 
         return redirect()->route('admin.users.index')->with('status', 'User updated.');
+    }
+
+    public function destroy(User $user): RedirectResponse
+    {
+        try {
+            $oldValues = $user->toArray();
+            $this->deletionService->delete($user);
+            $this->auditLogger->log('user.deleted', $user, $oldValues, null);
+        } catch (DeletionBlockException $exception) {
+            return redirect()->route('admin.users.index')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('admin.users.index')->with('status', 'User deleted.');
     }
 
     public function resetPassword(Request $request, User $user): RedirectResponse

@@ -4,6 +4,10 @@ Completed: Phase 6 POS Math & Cart UI Fixes
 
 Completed: Phase 6 POS Visit Queue Filtering
 
+**Completed: Phase 6, Epic 10 — Backup, Restore, And Module Data Exchange**
+
+**Completed: Phase 6, Epic 11 — Configuration Master Data Delete (Safe CRUD)**
+
 ## Clinic Management System - Phase 6
 
 ### Purpose
@@ -50,6 +54,8 @@ This document is for technical design and Epic breakdown only. No application co
 - POS optional link to today's recent patient visit records (latest visit selector).
 - Data migration path from Phase 4 `patient_visits` to the new patient model.
 - Audit logs for new admin and patient flows.
+- **Backup & Restore** screen under **Management**: per-dataset SQL and CSV export, CSV/XLSX import, dataset SQL restore, operational module CSV exports, and full-database SQL backup/restore (admin-only).
+- **Configuration delete (CRUD completion):** Admin/pharmacist-authorized hard delete for products, categories, suppliers, users, income categories, and expense categories — with dependency checks, ordered application cascade where safe, and clear block messages when history exists.
 
 ### 1.2 Explicitly Excluded
 
@@ -63,6 +69,13 @@ This document is for technical design and Epic breakdown only. No application co
 - Per-feature / per-button permission granularity.
 - Multi-branch support.
 - Stock ledger changes driven by patient module actions.
+- Automated/cloud backup schedules, off-site encrypted vaults, and multi-tenant backup policies.
+- Incremental/point-in-time database replication.
+- Blind merge import that skips validation (all imports must validate headers, types, and FK order).
+- Export to XLSX (export is **CSV only**; import accepts **CSV and XLSX**).
+- Blind database `ON DELETE CASCADE` on pharmacy sales, stock ledger, or finance entry tables (audit integrity).
+- Delete for patients, sales, purchase receipts, stock counts, or other operational modules (configuration scope only in Epic 11).
+- Bulk delete / multi-select purge UI.
 
 ### 1.3 Boundary Rules
 
@@ -74,6 +87,13 @@ This document is for technical design and Epic breakdown only. No application co
 - Finance Summary may continue to show pharmacy sales as a rolled-up total; detailed lists must show line-level pharmacy sales.
 - One migration file per database table.
 - Dedicated seeder file per seedable model; no category dump inside `DatabaseSeeder.php` beyond `call([...])`.
+- Dataset CSV exports use a documented column contract (stable header row); imports must match that contract whether uploaded as `.csv` or `.xlsx`.
+- Dataset SQL exports are table-scoped dumps for the dataset’s tables only (not the full database).
+- Full-database backup/restore uses a single `.sql` artifact; restore runs only through an explicit admin confirmation flow.
+- Backup, restore, import, and export actions are audited; destructive restores require a second confirmation step.
+- Configuration deletes run in a DB transaction via domain services; never rely on changing historical `restrictOnDelete` FKs to cascade sales or stock.
+- When dependencies exist, return a human-readable block reason (counts + what to do: deactivate, or remove dependent setup data first).
+- All deletes are audited (`*.deleted` actions).
 
 ---
 
@@ -190,6 +210,182 @@ resources/views/patients/
 resources/views/layouts/partials/sidebar.blade.php
 tests/Feature/
 ```
+
+### 2.5 Backup, Restore, And Data Exchange (Epic 10)
+
+#### Purpose
+
+Give admins a single **Management → Backup & Restore** screen to export clinic data safely, re-import reference/operational datasets, and take a full-database SQL snapshot. Frontline staff continue daily work in POS and other modules; this Epic is for migration, disaster recovery, and bulk data maintenance.
+
+#### File format contract
+
+| Direction | CSV | XLSX | SQL |
+|-----------|-----|------|-----|
+| **Export** | Yes (only tabular format) | No | Yes (dataset-scoped or full DB) |
+| **Import / restore** | Yes | Yes (same column contract as CSV) | Yes (dataset restore or full DB restore) |
+
+- Tabular import parsers read the first worksheet when the upload is `.xlsx`.
+- Exports always download as `.csv` (UTF-8, header row, comma-separated).
+- Dataset SQL files contain `INSERT` (or `INSERT` + table truncate preamble documented per dataset) for that dataset’s tables only.
+- Full-database SQL is a standard dump of all application tables (structure + data), produced and restored outside normal user CRUD flows.
+
+#### Dataset registry
+
+Each **dataset** is a named bundle of tables exported/imported together. Parent tables export before child tables; import runs in FK-safe order inside a DB transaction per dataset.
+
+| Dataset key | Label (UI) | Tables (export/import order) | Typical use |
+|-------------|------------|------------------------------|-------------|
+| `catalog` | Product Catalog | `product_categories`, `products`, `product_units` | Configuration backup, catalog migration |
+| `suppliers` | Suppliers | `suppliers` | Supplier master data |
+| `finance_categories` | Finance Categories | `income_categories`, `expense_categories` | Reference categories |
+| `patients` | Patients & Visits | `patients`, `patient_visit_records`, `patient_diagnoses` | Patient domain |
+| `finance_entries` | Income & Expenses | `income_entries`, `expense_entries` | Service/general income and expenses |
+| `pharmacy_sales` | Pharmacy Sales (POS) | `sales`, `sale_lines`, `sale_line_stock_allocations` | POS / sales history exchange |
+| `inventory` | Inventory & Stock | `purchase_receipts`, `purchase_receipt_lines`, `stock_ledger`, `stock_batches`, `stock_balances`, `stock_counts`, `stock_count_lines` | Stock movements and balances |
+| `administration` | Users & Access | `roles`, `permissions`, `role_permission`, `users` | Staff and permissions (see security rules) |
+
+**Module CSV shortcuts** on the same screen mirror dataset CSV export for staff-friendly labels (no separate schema):
+
+| Module shortcut | Maps to dataset | Notes |
+|-----------------|-------------------|-------|
+| POS / Sales History | `pharmacy_sales` | Completed and held sales included per export filters |
+| Patients | `patients` | Same CSV contract as dataset |
+| Finance (Income & Expenses) | `finance_entries` | Combined export |
+| Inventory | `inventory` | Includes ledger and balances |
+| Catalog | `catalog` | Products, categories, units |
+
+#### Suggested domain layer
+
+Namespace: `App\Domain\BackupRestore`
+
+| Service | Responsibility |
+|---------|----------------|
+| `DatasetRegistry` | Maps dataset keys → tables, column contracts, FK import order |
+| `DatasetCsvExporter` / `DatasetCsvImporter` | CSV export; CSV/XLSX import with validation |
+| `DatasetSqlExporter` / `DatasetSqlRestorer` | Table-scoped SQL generate/apply |
+| `FullDatabaseBackupService` | Full `.sql` dump download (CLI wrapper or PHP dump) |
+| `FullDatabaseRestoreService` | Apply uploaded full `.sql` after confirmation |
+| `BackupRestoreAudit` | Thin wrapper over `AuditLogger` |
+
+Controllers: `App\Http\Controllers\BackupRestore\BackupRestoreController` (index + download/upload actions).
+
+Routes (prefix `backup-restore`, name `backup-restore.*`):
+
+- `GET /backup-restore` — index UI with dataset cards and full DB section
+- `GET /backup-restore/datasets/{dataset}/export.csv`
+- `GET /backup-restore/datasets/{dataset}/export.sql`
+- `POST /backup-restore/datasets/{dataset}/import` — file: csv or xlsx
+- `POST /backup-restore/datasets/{dataset}/restore.sql` — file: sql
+- `GET /backup-restore/database/export.sql`
+- `POST /backup-restore/database/restore.sql` — file: sql + confirmation token
+
+#### Security and safety rules
+
+- **Admin only:** `screen.backup-restore` and matching `route.backup-restore.*` permissions; default grant: Admin role only.
+- **Audit:** `backup.dataset.exported`, `backup.dataset.imported`, `backup.dataset.restored`, `backup.database.exported`, `backup.database.restored` with dataset key and filename (never file body).
+- **Import modes:**
+  - `upsert` (default for configuration datasets): match on natural keys (`sku`, `patient_code`, `sale_number`, etc.) where defined; insert when missing.
+  - `replace` (optional, admin checkbox): truncate dataset tables then import — disabled for `administration` and `pharmacy_sales` unless explicit “danger” confirm.
+- **Full DB restore:** require typed confirmation phrase (e.g. clinic name) + idle session re-auth optional; block in production without `APP_ALLOW_DB_RESTORE=true` if env guard desired.
+- **Users import:** never import plaintext passwords; CSV/XLSX columns exclude `password`; new users get `password` unset and require admin reset.
+- **Stock integrity:** `inventory` and `pharmacy_sales` imports must not run while a stock count is `submitted`; document in usage notes.
+- **Dependencies:** importing `catalog` before `inventory` / `pharmacy_sales` is recommended; UI shows dependency hint per dataset.
+
+#### UI (design system)
+
+- Location: sidebar **Management** group → **Backup & Restore**.
+- Layout: `bg-gray-50` page, cards per dataset with actions: **Export CSV**, **Export SQL**, **Import** (file input accepts `.csv`, `.xlsx`), **Restore SQL**.
+- Separate **Full database** card: **Download SQL backup**, **Restore from SQL** (danger styling).
+- Success/error flash messages; link to `docs/phase-6-usage-notes.md` section.
+
+#### Dependencies
+
+- `maatwebsite/excel` (or equivalent) for **XLSX read on import only**.
+- Native PHP / `mysqli` dump or `spatie/db-dumper` for SQL generation — pick one in implementation plan; must work on Windows dev (user environment) and Linux deploy.
+
+#### Tests (planned)
+
+- `tests/Feature/BackupRestoreTest.php` — permission 403 for non-admin; CSV round-trip for `catalog`; SQL round-trip for `suppliers`; full export route returns attachment; import rejects invalid headers; audit rows created.
+
+#### Documentation (after implementation)
+
+- `docs/flows/phase-6-epic-10-backup-restore-sequence.md`
+- Update `docs/phase-6-usage-notes.md` and PRD Phase 6 list.
+
+### 2.6 Configuration Master Data Delete (Epic 11)
+
+#### Why not “DB cascade everywhere”?
+
+Many tables already use **`restrictOnDelete`** on `product_id`, `supplier_id`, and category FKs on purpose — so pharmacy sales, stock ledger rows, and finance entries cannot disappear accidentally. Epic 11 adds **application-level delete** that:
+
+1. **Deletes immediately** when there are zero blocking dependencies.
+2. **Cascades only safe children** in a defined order inside one transaction (e.g. `product_units` when a product is removed).
+3. **Blocks with a clear message** when operational history exists (sales lines, stock movements, posted purchases, income/expense rows).
+
+`is_active` remains the everyday “soft off” switch; **Delete** is for records that should leave the database.
+
+#### Scope (six modules)
+
+| Module | Route resource | Who can delete (default) |
+|--------|----------------|---------------------------|
+| Product categories | `product-categories` | Admin, Pharmacist |
+| Products | `products` | Admin, Pharmacist |
+| Suppliers | `suppliers` | Admin, Pharmacist |
+| Income categories | `finance.income-categories` | Admin, Pharmacist |
+| Expense categories | `finance.expense-categories` | Admin, Pharmacist |
+| Users | `admin.users` | Admin only |
+
+#### Dependency and delete rules
+
+| Entity | Block delete when | Allowed application cascade (same transaction) |
+|--------|-------------------|--------------------------------------------------|
+| **Income category** | Any `income_entries` row references it | — (use deactivate, or delete entries first) |
+| **Expense category** | Any `expense_entries` row references it | — |
+| **Supplier** | Any `purchase_receipts` for supplier | — |
+| **Product category** | Any `products` in category **that are not deletable** (see product rules) | Optionally delete category after all child products deleted successfully |
+| **Product** | Any `sale_lines`, `stock_ledger`, `stock_balances`, `stock_batches`, `purchase_receipt_lines`, or `stock_count_lines` reference product | If **no blockers**: delete `stock_balances` → `stock_batches` → `stock_ledger` (if any orphan setup only) → `product_units` (DB cascades from product) → `product`. **Never** delete sales or purchase receipts via product delete. |
+| **User** | User is current login, last active admin, or has non-null FK you choose to block (optional: block when `sales.sold_by` exists — recommend **allow** delete/null via existing `nullOnDelete`) | Delete user row; FKs null out per migration (`sold_by`, `created_by`, etc.) |
+
+**Product category flow:** “Delete category” runs product delete rules for each product in the category; if all succeed, delete category. If any product blocked, abort entire transaction and show which products blocked.
+
+#### UX (keep simple)
+
+- Add **Delete** on list row and edit screen footer (danger button).
+- One confirmation step: “Delete {name}? This cannot be undone.”
+- If blocked, flash error: “Cannot delete: used on 3 sales, 12 stock movements.”
+- No multi-step wizard.
+
+#### Domain services (suggested)
+
+Namespace: `App\Domain\Catalog\Services` and `App\Domain\Finance\Services`, `App\Domain\Administration\Services`
+
+| Service | Method |
+|---------|--------|
+| `ProductDeletionService` | `assertDeletable(Product): void`, `delete(Product): void` |
+| `ProductCategoryDeletionService` | `delete(ProductCategory): void` |
+| `SupplierDeletionService` | `delete(Supplier): void` |
+| `IncomeCategoryDeletionService` | `delete(IncomeCategory): void` |
+| `ExpenseCategoryDeletionService` | `delete(ExpenseCategory): void` |
+| `UserDeletionService` | `delete(User): void` |
+
+Shared helper: `DeletionBlockException` with `blockingReasons(): array` for UI messages.
+
+Controllers: add `destroy()` to existing resources; wire routes (remove `destroy` from `except()` lists).
+
+Permissions (new routes): `product-categories.destroy`, `products.destroy`, `suppliers.destroy`, `finance.income-categories.destroy`, `finance.expense-categories.destroy`, `admin.users.destroy` — grant Admin + Pharmacist except **users.destroy** (Admin only).
+
+#### Optional future migration (out of Epic 11 unless approved)
+
+- Do **not** change `sale_lines.product_id` or `stock_ledger.product_id` from `restrictOnDelete` to `cascadeOnDelete`.
+- If product image files exist on disk, delete file in `ProductDeletionService` after DB delete.
+
+#### Tests (planned)
+
+- `tests/Feature/ConfigurationDeleteTest.php` — category with product blocked; supplier with receipt blocked; income category with entry blocked; product with no history deletes units; user cannot delete self.
+
+#### Documentation (after implementation)
+
+- `docs/flows/phase-6-epic-11-configuration-delete-sequence.md`
 
 ---
 
@@ -959,6 +1155,107 @@ Acceptance criteria:
 
 ---
 
+### Epic 10: Backup, Restore, And Module Data Exchange
+
+#### Task 10.1 - Navigation and permissions
+
+Acceptance criteria:
+
+- `config/navigation.php` adds **Backup & Restore** under **Management** (`route` `backup-restore.index`, `screen` `backup-restore`).
+- `PermissionSeeder` registers screen + routes; only Admin role enabled by default.
+- Unauthorized users receive 403.
+
+#### Task 10.2 - `DatasetRegistry` and column contracts
+
+Acceptance criteria:
+
+- All eight dataset keys from §2.5 registered with table order and stable CSV headers.
+- Registry documents natural keys for upsert per table.
+- Unit tests cover registry completeness (every table listed once).
+
+#### Task 10.3 - Dataset CSV export and import
+
+Acceptance criteria:
+
+- Export CSV for each dataset and module shortcut (CSV only).
+- Import accepts `.csv` and `.xlsx` with identical validation.
+- Invalid rows return row-level errors without partial commit (transaction rollback).
+- FK import order enforced.
+
+#### Task 10.4 - Dataset SQL export and restore
+
+Acceptance criteria:
+
+- Per-dataset SQL download.
+- Dataset SQL restore applies within a transaction; failures roll back.
+- Restore action requires confirmation modal.
+
+#### Task 10.5 - Full-database SQL backup and restore
+
+Acceptance criteria:
+
+- Admin can download full-database `.sql`.
+- Admin can upload full-database `.sql` restore with typed confirmation.
+- Action audited; env guard documented if used.
+
+#### Task 10.6 - Backup & Restore UI
+
+Acceptance criteria:
+
+- Index page lists datasets and module shortcuts per §2.5.
+- Full-database section separated with danger styling.
+- Matches design system cards and primary/danger buttons.
+
+#### Task 10.7 - Tests, audit, and flow documentation
+
+Acceptance criteria:
+
+- `BackupRestoreTest` covers permissions, CSV round-trip, and audit events.
+- `docs/flows/phase-6-epic-10-backup-restore-sequence.md` created with manual QA for export/import and stock-sensitive datasets.
+
+---
+
+### Epic 11: Configuration Master Data Delete (Safe CRUD)
+
+#### Task 11.1 - Permissions and routes
+
+Acceptance criteria:
+
+- `destroy` routes registered for all six resources.
+- Permissions seeded; Pharmacist + Admin for catalog/finance categories; Admin only for users.
+- Cashier cannot delete configuration records.
+
+#### Task 11.2 - Deletion services and exceptions
+
+Acceptance criteria:
+
+- Each service implements dependency checks per §2.6 table.
+- `DeletionBlockException` returns structured reasons.
+- Deletes run in `DB::transaction()`.
+
+#### Task 11.3 - Controller `destroy` actions and audit
+
+Acceptance criteria:
+
+- Controllers call services; success redirects with flash.
+- Audit log action per entity: `product.deleted`, `product_category.deleted`, etc.
+
+#### Task 11.4 - UI delete buttons
+
+Acceptance criteria:
+
+- Index + edit views show Delete with confirmation (simple, one modal or `confirm()`).
+- Matches design system danger styling.
+
+#### Task 11.5 - Tests and flow doc
+
+Acceptance criteria:
+
+- `ConfigurationDeleteTest` covers block + success paths.
+- `docs/flows/phase-6-epic-11-configuration-delete-sequence.md` with manual QA checklist.
+
+---
+
 ### Epic 8: Audit, Security, QA, And Documentation
 
 #### Task 8.1 - Audit logs for admin and patient flows
@@ -996,7 +1293,9 @@ Acceptance criteria:
 5. Epic 5 — POS stock and parent breakdown.
 6. Epic 6 — POS latest visit link (depends on 3 and 4).
 9. Epic 9 — Finance & POS UI unification (depends on 3, 4, 6).
-8. Epic 8 — Audit, tests, flow docs.
+10. Epic 10 — Backup, restore, and data exchange (after 2; independent of patient/POS epics but should ship after core modules stable).
+11. Epic 11 — Configuration delete (after Epic 2 permissions; independent of Epic 10).
+8. Epic 8 — Audit, tests, flow docs (extend with Epic 10–11 tests/docs).
 
 ---
 
@@ -1024,7 +1323,9 @@ Phase 6 is complete when:
 - [ ] Finance categories seed on fresh install.
 - [ ] Flow docs exist for each Epic.
 - [x] Visit detail and Finance Income screens show unified service income + pharmacy sales (read-time merge; no `income_entries` duplication).
+- [x] Epic 10: Backup & Restore screen live; CSV export and CSV/XLSX import per dataset; SQL export/restore per dataset; full-database SQL backup/restore; audit coverage.
+- [x] Epic 11: Configuration modules support safe delete with dependency checks; cascade only where §2.6 allows; UI + tests + flow doc.
 
 ---
 
-**Document status:** Epic 9 (Finance & POS UI Unification) planned — **await approval before implementation**. Prior Epics 1–8 implementation may already be complete in codebase.
+**Document status:** Epic 11 implemented. Flow doc: `docs/flows/phase-6-epic-11-configuration-delete-sequence.md`.

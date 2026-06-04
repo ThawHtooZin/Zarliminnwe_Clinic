@@ -82,7 +82,7 @@ class Phase6Epic1FoundationTest extends TestCase
             ->assertSee('Stock Reports')
             ->assertDontSee('Go to POS')
             ->assertDontSee('Finance Summary')
-            ->assertDontSee('Patient Visits');
+            ->assertDontSee(route('patients.index'));
     }
 
     public function test_database_seeder_seeds_finance_categories(): void

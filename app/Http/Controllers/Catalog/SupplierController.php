@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Catalog;
 
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Catalog\Services\SupplierDeletionService;
+use App\Domain\Shared\Exceptions\DeletionBlockException;
 use App\Http\Controllers\Controller;
 use App\Models\Supplier;
 use Illuminate\Http\RedirectResponse;
@@ -11,7 +13,10 @@ use Illuminate\View\View;
 
 class SupplierController extends Controller
 {
-    public function __construct(private readonly AuditLogger $auditLogger) {}
+    public function __construct(
+        private readonly AuditLogger $auditLogger,
+        private readonly SupplierDeletionService $deletionService,
+    ) {}
 
     public function index(): View
     {
@@ -47,6 +52,19 @@ class SupplierController extends Controller
         $this->auditLogger->log('supplier.updated', $supplier, $oldValues, $supplier->fresh()->toArray());
 
         return redirect()->route('suppliers.index')->with('status', 'Supplier updated.');
+    }
+
+    public function destroy(Supplier $supplier): RedirectResponse
+    {
+        try {
+            $oldValues = $supplier->toArray();
+            $this->deletionService->delete($supplier);
+            $this->auditLogger->log('supplier.deleted', $supplier, $oldValues, null);
+        } catch (DeletionBlockException $exception) {
+            return redirect()->route('suppliers.index')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('suppliers.index')->with('status', 'Supplier deleted.');
     }
 
     private function validated(Request $request): array

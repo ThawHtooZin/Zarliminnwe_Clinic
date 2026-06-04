@@ -39,27 +39,6 @@ return [
             'label' => 'Management',
             'items' => [
                 [
-                    'label' => 'Products',
-                    'route' => 'products.index',
-                    'match' => 'products.*',
-                    'icon' => 'P',
-                    'screen' => 'products',
-                ],
-                [
-                    'label' => 'Categories',
-                    'route' => 'product-categories.index',
-                    'match' => 'product-categories.*',
-                    'icon' => 'C',
-                    'screen' => 'product-categories',
-                ],
-                [
-                    'label' => 'Suppliers',
-                    'route' => 'suppliers.index',
-                    'match' => 'suppliers.*',
-                    'icon' => 'U',
-                    'screen' => 'suppliers',
-                ],
-                [
                     'label' => 'Opening Stock',
                     'route' => 'opening-stock.create',
                     'match' => 'opening-stock.*',
@@ -101,11 +80,39 @@ return [
                     'icon' => 'N',
                     'screen' => 'stock-counts',
                 ],
+                [
+                    'label' => 'Backup & Restore',
+                    'route' => 'backup-restore.index',
+                    'match' => 'backup-restore.*',
+                    'icon' => 'B',
+                    'screen' => 'backup-restore',
+                ],
             ],
         ],
         'configurations' => [
             'label' => 'Configurations',
             'items' => [
+                [
+                    'label' => 'Products',
+                    'route' => 'products.index',
+                    'match' => 'products.*',
+                    'icon' => 'P',
+                    'screen' => 'products',
+                ],
+                [
+                    'label' => 'Categories',
+                    'route' => 'product-categories.index',
+                    'match' => 'product-categories.*',
+                    'icon' => 'C',
+                    'screen' => 'product-categories',
+                ],
+                [
+                    'label' => 'Suppliers',
+                    'route' => 'suppliers.index',
+                    'match' => 'suppliers.*',
+                    'icon' => 'U',
+                    'screen' => 'suppliers',
+                ],
                 [
                     'label' => 'Users',
                     'route' => 'admin.users.index',

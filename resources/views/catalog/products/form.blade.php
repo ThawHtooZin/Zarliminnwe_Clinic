@@ -172,9 +172,12 @@
             </div>
         </section>
 
-        <div class="flex gap-3">
+        <div class="flex flex-wrap items-center gap-3">
             <button class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">Save Product</button>
             <a href="{{ route('products.index') }}" class="rounded-xl border border-[#bec8ca] px-4 py-2 text-sm text-[#3e494a]">Cancel</a>
+            @if ($product->exists)
+                <x-delete-form :action="route('products.destroy', $product)" :confirm="$product->name" class="ml-auto" />
+            @endif
         </div>
     </form>
 @endsection

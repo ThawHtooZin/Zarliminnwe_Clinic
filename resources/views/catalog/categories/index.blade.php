@@ -15,6 +15,9 @@
     @if (session('status'))
         <div class="mb-4 rounded-xl border border-[#bec8ca] bg-white px-4 py-3 text-sm text-[#00535b]">{{ session('status') }}</div>
     @endif
+    @if (session('error'))
+        <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+    @endif
 
     <div class="overflow-hidden rounded-lg border border-[#bec8ca] bg-white">
         <table class="w-full text-left text-sm">
@@ -36,8 +39,9 @@
                                 {{ $category->is_active ? 'Active' : 'Inactive' }}
                             </span>
                         </td>
-                        <td class="px-5 py-4 text-right">
+                        <td class="px-5 py-4 text-right space-x-3">
                             <a href="{{ route('product-categories.edit', $category) }}" class="text-sm font-medium text-[#00535b]">Edit</a>
+                            <x-delete-form :action="route('product-categories.destroy', $category)" :confirm="$category->name" />
                         </td>
                     </tr>
                 @empty
