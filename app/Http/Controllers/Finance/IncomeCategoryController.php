@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Finance\Services\IncomeCategoryDeletionService;
+use App\Domain\Shared\Exceptions\DeletionBlockException;
 use App\Http\Controllers\Controller;
 use App\Models\IncomeCategory;
 use Illuminate\Http\RedirectResponse;
@@ -12,7 +14,10 @@ use Illuminate\View\View;
 
 class IncomeCategoryController extends Controller
 {
-    public function __construct(private readonly AuditLogger $auditLogger) {}
+    public function __construct(
+        private readonly AuditLogger $auditLogger,
+        private readonly IncomeCategoryDeletionService $deletionService,
+    ) {}
 
     public function index(): View
     {
@@ -53,6 +58,19 @@ class IncomeCategoryController extends Controller
         $this->auditLogger->log('income_category.updated', $incomeCategory, $oldValues, $incomeCategory->fresh()->toArray());
 
         return redirect()->route('finance.income-categories.index')->with('status', 'Income category updated.');
+    }
+
+    public function destroy(IncomeCategory $incomeCategory): RedirectResponse
+    {
+        try {
+            $oldValues = $incomeCategory->toArray();
+            $this->deletionService->delete($incomeCategory);
+            $this->auditLogger->log('income_category.deleted', $incomeCategory, $oldValues, null);
+        } catch (DeletionBlockException $exception) {
+            return redirect()->route('finance.income-categories.index')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('finance.income-categories.index')->with('status', 'Income category deleted.');
     }
 
     /**

@@ -30,6 +30,7 @@ use App\Http\Controllers\Sales\ProductSearchController;
 use App\Http\Controllers\Sales\SaleController;
 use App\Http\Controllers\Sales\SaleReceiptController;
 use App\Http\Controllers\Sales\SaleVoidController;
+use App\Http\Controllers\BackupRestore\BackupRestoreController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -69,8 +70,8 @@ Route::middleware(['auth', 'permission.route'])->group(function () {
         Route::resource('expenses', ExpenseEntryController::class)
             ->except(['show', 'destroy'])
             ->parameters(['expenses' => 'expenseEntry']);
-        Route::resource('income-categories', IncomeCategoryController::class)->except(['show', 'destroy']);
-        Route::resource('expense-categories', ExpenseCategoryController::class)->except(['show', 'destroy']);
+        Route::resource('income-categories', IncomeCategoryController::class)->except(['show']);
+        Route::resource('expense-categories', ExpenseCategoryController::class)->except(['show']);
     });
 
     Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
@@ -87,9 +88,9 @@ Route::middleware(['auth', 'permission.route'])->group(function () {
     Route::get('/reports/finance-expenses', [FinanceReportController::class, 'expenseReport'])->name('reports.finance-expenses');
     Route::get('/reports/finance-summary', [FinanceReportController::class, 'financeSummary'])->name('reports.finance-summary');
 
-    Route::resource('product-categories', ProductCategoryController::class)->except(['show', 'destroy']);
-    Route::resource('products', ProductController::class)->except(['destroy']);
-    Route::resource('suppliers', SupplierController::class)->except(['show', 'destroy']);
+    Route::resource('product-categories', ProductCategoryController::class)->except(['show']);
+    Route::resource('products', ProductController::class);
+    Route::resource('suppliers', SupplierController::class)->except(['show']);
 
     Route::get('/opening-stock', [OpeningStockController::class, 'create'])->name('opening-stock.create');
     Route::post('/opening-stock', [OpeningStockController::class, 'store'])->name('opening-stock.store');
@@ -116,8 +117,18 @@ Route::middleware(['auth', 'permission.route'])->group(function () {
     Route::get('/reports/stock-adjustments', [StockReportController::class, 'adjustments'])->name('reports.stock-adjustments');
 
     Route::prefix('admin')->name('admin.')->group(function () {
-        Route::resource('users', UserController::class)->except(['show', 'destroy']);
+        Route::resource('users', UserController::class)->except(['show']);
         Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
         Route::resource('roles', RoleController::class)->only(['index', 'edit', 'update']);
+    });
+
+    Route::prefix('backup-restore')->name('backup-restore.')->group(function () {
+        Route::get('/', [BackupRestoreController::class, 'index'])->name('index');
+        Route::get('/datasets/{dataset}/export.csv', [BackupRestoreController::class, 'exportCsv'])->name('export.csv');
+        Route::get('/datasets/{dataset}/export.sql', [BackupRestoreController::class, 'exportSql'])->name('export.sql');
+        Route::post('/datasets/{dataset}/import', [BackupRestoreController::class, 'import'])->name('import');
+        Route::post('/datasets/{dataset}/restore.sql', [BackupRestoreController::class, 'restoreSql'])->name('restore.sql');
+        Route::get('/database/export.sql', [BackupRestoreController::class, 'exportDatabase'])->name('database.export');
+        Route::post('/database/restore.sql', [BackupRestoreController::class, 'restoreDatabase'])->name('database.restore');
     });
 });

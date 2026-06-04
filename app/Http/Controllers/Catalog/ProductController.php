@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Catalog;
 
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Catalog\Services\ProductDeletionService;
+use App\Domain\Shared\Exceptions\DeletionBlockException;
 use App\Domain\Units\Services\UnitRelationshipService;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
@@ -22,7 +24,8 @@ class ProductController extends Controller
 {
     public function __construct(
         private readonly AuditLogger $auditLogger,
-        private readonly UnitRelationshipService $unitRelationshipService
+        private readonly UnitRelationshipService $unitRelationshipService,
+        private readonly ProductDeletionService $deletionService,
     ) {}
 
     public function index(Request $request): View
@@ -131,6 +134,19 @@ class ProductController extends Controller
         }
 
         return redirect()->route('products.index')->with('status', 'Product updated.');
+    }
+
+    public function destroy(Product $product): RedirectResponse
+    {
+        try {
+            $oldValues = $product->load('units')->toArray();
+            $this->deletionService->delete($product);
+            $this->auditLogger->log('product.deleted', $product, $oldValues, null);
+        } catch (DeletionBlockException $exception) {
+            return redirect()->route('products.index')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('products.index')->with('status', 'Product deleted.');
     }
 
     private function validated(Request $request, ?Product $product = null): array

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Finance\Services\ExpenseCategoryDeletionService;
+use App\Domain\Shared\Exceptions\DeletionBlockException;
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseCategory;
 use Illuminate\Http\RedirectResponse;
@@ -12,7 +14,10 @@ use Illuminate\View\View;
 
 class ExpenseCategoryController extends Controller
 {
-    public function __construct(private readonly AuditLogger $auditLogger) {}
+    public function __construct(
+        private readonly AuditLogger $auditLogger,
+        private readonly ExpenseCategoryDeletionService $deletionService,
+    ) {}
 
     public function index(): View
     {
@@ -50,6 +55,19 @@ class ExpenseCategoryController extends Controller
         $this->auditLogger->log('expense_category.updated', $expenseCategory, $oldValues, $expenseCategory->fresh()->toArray());
 
         return redirect()->route('finance.expense-categories.index')->with('status', 'Expense category updated.');
+    }
+
+    public function destroy(ExpenseCategory $expenseCategory): RedirectResponse
+    {
+        try {
+            $oldValues = $expenseCategory->toArray();
+            $this->deletionService->delete($expenseCategory);
+            $this->auditLogger->log('expense_category.deleted', $expenseCategory, $oldValues, null);
+        } catch (DeletionBlockException $exception) {
+            return redirect()->route('finance.expense-categories.index')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('finance.expense-categories.index')->with('status', 'Expense category deleted.');
     }
 
     /**

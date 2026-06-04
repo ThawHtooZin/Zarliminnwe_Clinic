@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Catalog;
 
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Catalog\Services\ProductCategoryDeletionService;
+use App\Domain\Shared\Exceptions\DeletionBlockException;
 use App\Http\Controllers\Controller;
 use App\Models\ProductCategory;
 use Illuminate\Http\RedirectResponse;
@@ -11,7 +13,10 @@ use Illuminate\View\View;
 
 class ProductCategoryController extends Controller
 {
-    public function __construct(private readonly AuditLogger $auditLogger) {}
+    public function __construct(
+        private readonly AuditLogger $auditLogger,
+        private readonly ProductCategoryDeletionService $deletionService,
+    ) {}
 
     public function index(): View
     {
@@ -50,6 +55,19 @@ class ProductCategoryController extends Controller
         $this->auditLogger->log('product_category.updated', $productCategory, $oldValues, $productCategory->fresh()->toArray());
 
         return redirect()->route('product-categories.index')->with('status', 'Category updated.');
+    }
+
+    public function destroy(ProductCategory $productCategory): RedirectResponse
+    {
+        try {
+            $oldValues = $productCategory->toArray();
+            $this->deletionService->delete($productCategory);
+            $this->auditLogger->log('product_category.deleted', $productCategory, $oldValues, null);
+        } catch (DeletionBlockException $exception) {
+            return redirect()->route('product-categories.index')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('product-categories.index')->with('status', 'Category deleted.');
     }
 
     private function validated(Request $request): array

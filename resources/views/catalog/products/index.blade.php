@@ -15,6 +15,9 @@
     @if (session('status'))
         <div class="mb-4 rounded-xl border border-[#bec8ca] bg-white px-4 py-3 text-sm text-[#00535b]">{{ session('status') }}</div>
     @endif
+    @if (session('error'))
+        <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+    @endif
 
     <form class="mb-4">
         <input name="search" value="{{ request('search') }}" placeholder="Search by name, SKU, or generic name" class="w-full max-w-md rounded-xl border border-[#bec8ca] bg-white px-4 py-3 text-sm outline-none focus:border-[#00535b]">
@@ -48,9 +51,10 @@
                         <td class="px-5 py-4 text-[#3e494a]">{{ $product->category?->name }}</td>
                         <td class="px-5 py-4 text-[#3e494a]">{{ $product->units->pluck('abbreviation')->implode(', ') ?: '-' }}</td>
                         <td class="px-5 py-4">{{ $product->is_active ? 'Active' : 'Inactive' }}</td>
-                        <td class="px-5 py-4 text-right">
-                            <a href="{{ route('products.show', $product) }}" class="mr-3 font-medium text-[#00535b]">View</a>
+                        <td class="px-5 py-4 text-right space-x-3">
+                            <a href="{{ route('products.show', $product) }}" class="font-medium text-[#00535b]">View</a>
                             <a href="{{ route('products.edit', $product) }}" class="font-medium text-[#00535b]">Edit</a>
+                            <x-delete-form :action="route('products.destroy', $product)" :confirm="$product->name" />
                         </td>
                     </tr>
                 @empty

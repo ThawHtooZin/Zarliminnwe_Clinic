@@ -103,6 +103,8 @@
 - Support roles such as Admin, Pharmacist, Cashier, and Stock Manager.
 - Maintain audit logs for critical actions.
 - Configure pharmacy name, currency, receipt footer, and basic settings.
+- **Backup & Restore (Phase 6):** Admin-only export/import of named datasets (CSV export; CSV/XLSX import; per-dataset SQL export/restore) and full-database SQL backup/restore. See Phase 6 PRD bullets and `docs/phase-6-technical-design-and-tasks.md` §2.5.
+- **Configuration delete (Phase 6, Epic 11):** Hard delete for products, product categories, suppliers, income categories, expense categories, and users — with dependency checks; no deletion of sales/stock history via cascade.
 
 #### Project Exclusions
 
@@ -114,6 +116,8 @@
 - Multi-branch inventory in MVP.
 - Loyalty programs and advanced CRM.
 - Complex hardware integrations beyond barcode scanner and receipt printer support.
+- Automated off-site backup scheduling and cloud backup vaults (manual admin backup/restore only in Phase 6 Epic 10).
+- Deleting operational history (sales, stock ledger, purchase receipts) as a side effect of deleting a product or category (Epic 11 blocks instead).
 
 #### Project Constraints
 
@@ -394,10 +398,42 @@
 - The dashboard shall show clinic activity:
   - Today's patient visits count from `patient_visit_records`.
 - The dashboard shall explicitly exclude complex EHR graphs, patient demographic charts, and deep accounting charts.
+- **Backup & Restore** (Phase 6, Epic 10): admin-only Management screen for data protection and bulk exchange.
+  - Per-dataset export/import for configuration and operational data (catalog, suppliers, finance categories, patients, finance entries, pharmacy sales/POS, inventory, administration).
+  - Tabular **export: CSV only**; tabular **import: CSV or XLSX** (same column contract).
+  - Per-dataset **SQL export and SQL restore** for the dataset’s tables.
+  - **Full-database SQL backup** (download) and **full-database SQL restore** (upload with explicit admin confirmation).
+  - Module shortcuts on the same screen (e.g. POS/Sales History, Patients, Finance, Inventory) use the same CSV contracts as their datasets.
+  - All backup, import, and restore actions shall be audit-logged; destructive operations require confirmation.
+
+##### Backup & Restore (Data Exchange)
+
+- The system shall provide a **Backup & Restore** page under the **Management** sidebar group.
+- The system shall support named **datasets** that group related tables (see `docs/phase-6-technical-design-and-tasks.md` §2.5).
+- For each dataset, the system shall allow:
+  - Export to **CSV** (tabular export format for this product).
+  - Export to **SQL** (table-scoped dump for that dataset only).
+  - Import from **CSV or XLSX** using the dataset’s published column headers.
+  - Restore from a previously exported **dataset SQL** file.
+- The system shall **not** export tabular data to XLSX; XLSX is import-only.
+- The system shall support a **full-database SQL backup** download and **full-database SQL restore** for administrators, with a confirmation step before restore.
+- The system shall expose convenient **module CSV exports** (POS/pharmacy sales, patients, finance entries, inventory, catalog, etc.) aligned with dataset definitions.
+- Dataset import shall validate types and foreign keys and run in a transaction; failed imports shall not leave partial data.
+- User passwords shall not be imported via CSV/XLSX; imported users require admin password reset.
+- Automated off-site backup scheduling is out of scope for MVP.
+
+##### Configuration Delete (Epic 11)
+
+- The system shall allow authorized users to **delete** configuration records: product categories, products, suppliers, income categories, expense categories, and users.
+- Delete shall be refused with a clear message when dependent data exists (e.g. product on sales or stock ledger; category with non-deletable products; supplier with purchase receipts; finance category with entries).
+- Delete may cascade **only** safe child rows defined in technical design (e.g. `product_units` when a product has no operational history).
+- The system shall **not** cascade-delete pharmacy sales, sale lines, stock ledger history, or purchase receipts when deleting a product.
+- User delete shall be admin-only; users shall not delete themselves or the last admin account.
+- Deactivate (`is_active`) remains the preferred way to hide records from daily use; delete is for removing unused master data.
 
 ## Coming In Later Phase 6 Epics
 
-- *(None — Phase 6 scope is defined in technical design.)*
+- *(None — Epic 11 Configuration Delete is implemented.)*
 
 ### Success Metrics
 

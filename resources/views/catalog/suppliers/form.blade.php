@@ -41,9 +41,12 @@
             <textarea name="address" rows="4" class="w-full rounded-xl border border-[#bec8ca] bg-[#f8f9fa] px-4 py-3 text-sm outline-none focus:border-[#00535b]">{{ old('address', $supplier->address) }}</textarea>
         </div>
 
-        <div class="mt-6 flex gap-3">
+        <div class="mt-6 flex flex-wrap items-center gap-3">
             <button class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">Save</button>
             <a href="{{ route('suppliers.index') }}" class="rounded-xl border border-[#bec8ca] px-4 py-2 text-sm text-[#3e494a]">Cancel</a>
+            @if ($supplier->exists)
+                <x-delete-form :action="route('suppliers.destroy', $supplier)" :confirm="$supplier->name" class="ml-auto" />
+            @endif
         </div>
     </form>
 @endsection
