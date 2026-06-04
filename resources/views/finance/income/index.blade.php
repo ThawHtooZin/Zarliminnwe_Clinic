@@ -9,7 +9,10 @@
             <h1 class="text-3xl font-semibold text-[#191c1d]">Income Entries</h1>
             <p class="mt-1 text-sm text-[#3e494a]">Service income and completed pharmacy POS sales in one list. Sales are not duplicated into income entries.</p>
         </div>
-        <a href="{{ route('finance.income.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">Record Service Income</a>
+        <div class="flex gap-2">
+            <x-export-excel-link :href="route('finance.income.export', request()->query())" />
+            <a href="{{ route('finance.income.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">Record Service Income</a>
+        </div>
     </div>
 
     @if (session('status'))

@@ -9,7 +9,10 @@
             <h1 class="text-3xl font-semibold text-[#191c1d]">Products</h1>
             <p class="mt-1 text-sm text-[#3e494a]">Manage pharmacy items and their unit levels.</p>
         </div>
-        <a href="{{ route('products.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">New Product</a>
+        <div class="flex gap-2">
+            <x-export-excel-link :href="route('products.export', request()->query())" />
+            <a href="{{ route('products.create') }}" class="rounded-xl bg-[#00535b] px-4 py-2 text-sm font-semibold text-white">New Product</a>
+        </div>
     </div>
 
     @if (session('status'))
