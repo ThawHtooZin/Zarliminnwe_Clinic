@@ -10,7 +10,7 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
+     * Full dataset for local/dev. For production auth-only setup use DevelopmentDataSeeder.
      */
     public function run(): void
     {

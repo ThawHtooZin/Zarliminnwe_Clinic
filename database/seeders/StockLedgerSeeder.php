@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Product;
 use App\Models\ProductUnit;
+use App\Models\Role;
 use App\Models\StockBatch;
 use App\Models\StockLedger;
 use App\Models\User;
@@ -16,7 +17,7 @@ class StockLedgerSeeder extends Seeder
      */
     public function run(): void
     {
-        $admin = User::where('email', 'admin@zarliminnew.test')->firstOrFail();
+        $createdBy = $this->resolveCreatedByUserId();
         $ledgers = [
             ['PARA-500', 'PARA-B001', 'box', 8, 18000],
             ['PARA-500', 'PARA-B001', 'strip', 24, 1800],
@@ -54,8 +55,42 @@ class StockLedgerSeeder extends Seeder
             ], [
                 'quantity' => $quantity,
                 'unit_cost' => $unitCost,
-                'created_by' => $admin->id,
+                'created_by' => $createdBy,
             ]);
         }
+    }
+
+    /**
+     * Prefer dev seed admin, then any admin user, then any active user.
+     * created_by is nullable when no users exist yet.
+     */
+    private function resolveCreatedByUserId(): ?int
+    {
+        $seedAdmin = User::query()
+            ->where('email', 'admin@zarliminnew.test')
+            ->value('id');
+
+        if ($seedAdmin !== null) {
+            return $seedAdmin;
+        }
+
+        $adminRoleId = Role::query()->where('slug', Role::SLUG_ADMIN)->value('id');
+
+        if ($adminRoleId !== null) {
+            $productionAdmin = User::query()
+                ->where('role_id', $adminRoleId)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->value('id');
+
+            if ($productionAdmin !== null) {
+                return $productionAdmin;
+            }
+        }
+
+        return User::query()
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->value('id');
     }
 }
